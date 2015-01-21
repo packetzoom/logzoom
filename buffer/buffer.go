@@ -1,9 +1,7 @@
 package buffer
 
 import (
-	"fmt"
 	"log"
-	"sync"
 	"time"
 )
 
@@ -32,9 +30,10 @@ type subscriber struct {
 }
 
 type Buffer struct {
-	mtx         sync.Mutex
 	send        chan *Event
 	subscribers map[string]*subscriber
+	add         chan *subscriber
+	del         chan string
 	term        chan bool
 	ticker      *time.Ticker
 }
@@ -44,26 +43,19 @@ func New() *Buffer {
 		ticker:      time.NewTicker(time.Duration(10) * time.Millisecond),
 		send:        make(chan *Event, bufSize),
 		subscribers: make(map[string]*subscriber),
+		add:         make(chan *subscriber, 1),
+		del:         make(chan string, 1),
 		term:        make(chan bool, 1),
 	}
 }
 
 func (b *Buffer) AddSubscriber(host string, ch chan *Event) error {
-	b.mtx.Lock()
-	defer b.mtx.Unlock()
-
-	if _, ok := b.subscribers[host]; ok {
-		return fmt.Errorf("subscriber %s already exists", host)
-	}
-
-	b.subscribers[host] = &subscriber{host, ch}
+	b.add <- &subscriber{host, ch}
 	return nil
 }
 
 func (b *Buffer) DelSubscriber(host string) error {
-	b.mtx.Lock()
-	defer b.mtx.Unlock()
-	delete(b.subscribers, host)
+	b.del <- host
 	return nil
 }
 
@@ -85,13 +77,20 @@ func (b *Buffer) Start() {
 		select {
 		case e := <-b.send:
 			b.Publish(e)
+		case s := <-b.add:
+			if _, ok := b.subscribers[s.Host]; ok {
+				log.Printf("A subscriber is already registered for %s\n", s.Host)
+				continue
+			}
+			b.subscribers[s.Host] = s
+		case h := <-b.del:
+			delete(b.subscribers, h)
 		case <-b.term:
 			log.Println("Received on term chan")
 			break
 		}
 	}
 }
-
 func (b *Buffer) Stop() {
 	b.term <- true
 }

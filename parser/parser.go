@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/binary"
-    "encoding/json"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"strconv"
-    "strings"
+	"strings"
 	"time"
 
 	"github.com/packetzoom/logslammer/buffer"
@@ -149,16 +149,16 @@ func (p *Parser) read() error {
 			}
 
 			var ev buffer.Event
-            var fields map[string]interface{}
-            decoder := json.NewDecoder(strings.NewReader(string(jsonData)))
-            decoder.UseNumber()
-            err = decoder.Decode(&fields)
+			var fields map[string]interface{}
+			decoder := json.NewDecoder(strings.NewReader(string(jsonData)))
+			decoder.UseNumber()
+			err = decoder.Decode(&fields)
 
-            if err != nil {
-                return err
-            }
+			if err != nil {
+				return err
+			}
 			ev.Source = fmt.Sprintf("lumberjack://%s%s", fields["host"], fields["file"])
-            jsonNumber := fields["offset"].(json.Number)
+			jsonNumber := fields["offset"].(json.Number)
 			ev.Offset, _ = jsonNumber.Int64()
 			ev.Line = uint64(seq)
 			t := fields["message"].(string)

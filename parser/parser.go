@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	ack         = "ACKMSG"
+	ack         = "2A"
 	maxKeyLen   = 100 * 1024 * 1024 // 100 mb
 	maxValueLen = 250 * 1024 * 1024 // 250 mb
 )
@@ -41,8 +41,12 @@ func New(c net.Conn, r Receiver) *Parser {
 }
 
 // ack acknowledges that the payload was received successfully
-func (p *Parser) ack() error {
-	if _, err := p.Conn.Write([]byte(ack)); err != nil {
+func (p *Parser) ack(seq uint32) error {
+	buffer := bytes.NewBuffer([]byte(ack))
+	binary.Write(buffer, binary.BigEndian, seq)
+	log.Printf("Sending ACK with seq %d", seq)
+
+	if _, err := p.Conn.Write(buffer.Bytes()); err != nil {
 		return err
 	}
 
@@ -84,14 +88,14 @@ func (p *Parser) readKV() ([]byte, []byte, error) {
 }
 
 // read parses the compressed data frame
-func (p *Parser) read() error {
+func (p *Parser) read() (uint32, error) {
 	var seq, count uint32
 	var k, v []byte
 	var err error
 
 	r, err := zlib.NewReader(p.Conn)
 	if err != nil {
-		return err
+		return seq, err
 	}
 	defer r.Close()
 
@@ -104,7 +108,7 @@ func (p *Parser) read() error {
 	for i := uint32(0); i < p.wlen; i++ {
 		n, err := buff.Read(b)
 		if err == io.EOF {
-			return err
+			return seq, err
 		}
 
 		if n == 0 {
@@ -122,7 +126,7 @@ func (p *Parser) read() error {
 
 			for j := uint32(0); j < count; j++ {
 				if k, v, err = p.readKV(); err != nil {
-					return err
+					return seq, err
 				}
 				fields[string(k)] = string(v)
 			}
@@ -145,7 +149,7 @@ func (p *Parser) read() error {
 			log.Printf("Got message: %s", jsonData)
 
 			if err != nil {
-				return err
+				return seq, err
 			}
 
 			var ev buffer.Event
@@ -155,7 +159,7 @@ func (p *Parser) read() error {
 			err = decoder.Decode(&fields)
 
 			if err != nil {
-				return err
+				return seq, err
 			}
 			ev.Source = fmt.Sprintf("lumberjack://%s%s", fields["host"], fields["file"])
 			jsonNumber := fields["offset"].(json.Number)
@@ -169,11 +173,11 @@ func (p *Parser) read() error {
 			p.Recv.Send(&ev)
 
 		default:
-			return fmt.Errorf("unknown type: %s", b)
+			return seq, fmt.Errorf("unknown type: %s", b)
 		}
 	}
 
-	return nil
+	return seq, nil
 }
 
 // Parse initialises the read loop and begins parsing the incoming request
@@ -195,12 +199,15 @@ Read:
 			binary.Read(p.Conn, binary.BigEndian, &p.wlen)
 		case "2C": // frame length
 			binary.Read(p.Conn, binary.BigEndian, &p.plen)
-			if err := p.read(); err != nil {
+			var seq uint32
+			seq, err := p.read()
+
+			if err != nil {
 				log.Printf("[%s] error parsing %v", p.Conn.RemoteAddr().String(), err)
 				break Read
 			}
 
-			if err := p.ack(); err != nil {
+			if err := p.ack(seq); err != nil {
 				log.Printf("[%s] error acking %v", p.Conn.RemoteAddr().String(), err)
 				break Read
 			}

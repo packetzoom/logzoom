@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/binary"
+    "encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"strconv"
+    "strings"
 	"time"
 
 	"github.com/packetzoom/logslammer/buffer"
@@ -83,7 +85,7 @@ func (p *Parser) readKV() ([]byte, []byte, error) {
 
 // read parses the compressed data frame
 func (p *Parser) read() error {
-	var s, f uint32
+	var seq, count uint32
 	var k, v []byte
 	var err error
 
@@ -110,15 +112,15 @@ func (p *Parser) read() error {
 		}
 
 		switch string(b) {
-		case "1D": // window size
-			binary.Read(buff, binary.BigEndian, &s)
-			binary.Read(buff, binary.BigEndian, &f)
+		case "2D": // window size
+			binary.Read(buff, binary.BigEndian, &seq)
+			binary.Read(buff, binary.BigEndian, &count)
 
 			var ev buffer.Event
-			fields := make(map[string]string)
+			fields := make(map[string]interface{})
 			fields["timestamp"] = time.Now().Format(time.RFC3339Nano)
 
-			for j := uint32(0); j < f; j++ {
+			for j := uint32(0); j < count; j++ {
 				if k, v, err = p.readKV(); err != nil {
 					return err
 				}
@@ -126,16 +128,48 @@ func (p *Parser) read() error {
 			}
 
 			ev.Source = fmt.Sprintf("lumberjack://%s%s", fields["host"], fields["file"])
-			ev.Offset, _ = strconv.ParseInt(fields["offset"], 10, 64)
-			ev.Line = uint64(s)
-			t := fields["line"]
+			ev.Offset, _ = strconv.ParseInt(fields["offset"].(string), 10, 64)
+			ev.Line = uint64(seq)
+			t := fields["line"].(string)
 			ev.Text = &t
 			ev.Fields = &fields
 
 			// Send to the receiver which is a buffer. We block because...
 			p.Recv.Send(&ev)
+		case "2J": // JSON
+			log.Printf("Got JSON data")
+			binary.Read(buff, binary.BigEndian, &seq)
+			binary.Read(buff, binary.BigEndian, &count)
+			jsonData := make([]byte, count)
+			_, err := p.buffer.Read(jsonData)
+			log.Printf("Got message: %s", jsonData)
+
+			if err != nil {
+				return err
+			}
+
+			var ev buffer.Event
+            var fields map[string]interface{}
+            decoder := json.NewDecoder(strings.NewReader(string(jsonData)))
+            decoder.UseNumber()
+            err = decoder.Decode(&fields)
+
+            if err != nil {
+                return err
+            }
+			ev.Source = fmt.Sprintf("lumberjack://%s%s", fields["host"], fields["file"])
+            jsonNumber := fields["offset"].(json.Number)
+			ev.Offset, _ = jsonNumber.Int64()
+			ev.Line = uint64(seq)
+			t := fields["message"].(string)
+			ev.Text = &t
+			ev.Fields = &fields
+
+			// Send to the receiver which is a buffer. We block because...
+			p.Recv.Send(&ev)
+
 		default:
-			return fmt.Errorf("unknown type")
+			return fmt.Errorf("unknown type: %s", b)
 		}
 	}
 
@@ -157,9 +191,9 @@ Read:
 		}
 
 		switch string(b) {
-		case "1W": // window length
+		case "2W": // window length
 			binary.Read(p.Conn, binary.BigEndian, &p.wlen)
-		case "1C": // frame length
+		case "2C": // frame length
 			binary.Read(p.Conn, binary.BigEndian, &p.plen)
 			if err := p.read(); err != nil {
 				log.Printf("[%s] error parsing %v", p.Conn.RemoteAddr().String(), err)
@@ -172,7 +206,7 @@ Read:
 			}
 		default:
 			// This really shouldn't happen
-			log.Printf("[%s] Received unknown type", p.Conn.RemoteAddr().String(), err)
+			log.Printf("[%s] Received unknown type (%s): %s", p.Conn.RemoteAddr().String(), b, err)
 			break Read
 		}
 	}

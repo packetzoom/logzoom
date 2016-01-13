@@ -133,7 +133,7 @@ func (i *Indexer) flush() {
 func (i *Indexer) index(ev *buffer.Event) {
 	doc := indexDoc(ev)
 	idx := indexName("")
-	typ := (*ev.Fields)["type"]
+	typ := (*ev.Fields)["type"].(string)
 
 	i.events++
 	i.writeBulk(idx, typ, doc)

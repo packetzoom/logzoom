@@ -20,7 +20,7 @@ type Event struct {
 	Offset int64   `json:"offset,omitempty"`
 	Line   uint64  `json:"line,omitempty"`
 	Text   *string `json:"text,omitempty"`
-	Fields *map[string]string
+	Fields *map[string]interface{}
 }
 
 // subscriber is some host that wants to receive events

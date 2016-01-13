@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"code.google.com/p/go.net/websocket"
-	"github.com/hailocab/logslam/buffer"
-	"github.com/hailocab/logslam/output"
+	"github.com/packetzoom/logslammer/buffer"
+	"github.com/packetzoom/logslammer/output"
 )
 
 const (

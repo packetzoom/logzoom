@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	_ "github.com/hailocab/logslam/input/lumberjack"
-	_ "github.com/hailocab/logslam/output/elasticsearch"
-	_ "github.com/hailocab/logslam/output/tcp"
-	_ "github.com/hailocab/logslam/output/websocket"
-	"github.com/hailocab/logslam/server"
+	_ "github.com/packetzoom/logslammer/input/lumberjack"
+	_ "github.com/packetzoom/logslammer/output/elasticsearch"
+	_ "github.com/packetzoom/logslammer/output/tcp"
+	_ "github.com/packetzoom/logslammer/output/websocket"
+	"github.com/packetzoom/logslammer/server"
 )
 
 var (

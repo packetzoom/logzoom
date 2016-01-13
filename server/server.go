@@ -7,9 +7,9 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/hailocab/logslam/buffer"
-	"github.com/hailocab/logslam/input"
-	"github.com/hailocab/logslam/output"
+	"github.com/packetzoom/logslammer/buffer"
+	"github.com/packetzoom/logslammer/input"
+	"github.com/packetzoom/logslammer/output"
 )
 
 type Server struct {

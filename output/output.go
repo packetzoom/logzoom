@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/hailocab/logslam/buffer"
+	"github.com/packetzoom/logslammer/buffer"
 )
 
 type Output interface {

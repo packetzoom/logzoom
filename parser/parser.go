@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/hailocab/logslam/buffer"
+	"github.com/packetzoom/logslammer/buffer"
 )
 
 const (

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/hailocab/logslam/parser"
+	"github.com/packetzoom/logslammer/parser"
 )
 
 type Input interface {

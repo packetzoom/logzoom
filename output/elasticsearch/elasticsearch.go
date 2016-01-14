@@ -172,8 +172,8 @@ func (es *ESServer) Start() error {
 	api.SetHosts(es.hosts)
 
 	// Add the client as a subscriber
-	r := make(chan *buffer.Event, esRecvBuffer)
-	es.b.AddSubscriber(es.host, r)
+	receiveChan := make(chan *buffer.Event, esRecvBuffer)
+	es.b.AddSubscriber(es.host, receiveChan)
 	defer es.b.DelSubscriber(es.host)
 
 	// Create indexer
@@ -184,7 +184,7 @@ func (es *ESServer) Start() error {
 
 	for {
 		select {
-		case ev := <-r:
+		case ev := <-receiveChan:
 			idx.index(ev)
 		case <-tick.C:
 			idx.flush()

@@ -1,4 +1,4 @@
-package Redis
+package redis
 
 import (
 	"encoding/json"
@@ -38,12 +38,12 @@ func init() {
 }
 
 func (redisServer *RedisServer) Init(config json.RawMessage, sender buffer.Sender) error {
-	var RedisConfig *Config
-	if err := json.Unmarshal(config, &RedisConfig); err != nil {
+	var redisConfig *Config
+	if err := json.Unmarshal(config, &redisConfig); err != nil {
 		return fmt.Errorf("Error parsing Redis config: %v", err)
 	}
 
-	redisServer.config = *RedisConfig
+	redisServer.config = *redisConfig
 	redisServer.sender = sender
 	return nil
 }

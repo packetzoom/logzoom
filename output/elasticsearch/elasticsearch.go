@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"strconv"
 	"time"
 
 	"github.com/hailocab/elastigo/api"
@@ -24,19 +23,24 @@ const (
 )
 
 type Indexer struct {
-	events int
-	buffer *bytes.Buffer
+	events      int
+	buffer      *bytes.Buffer
+	indexPrefix string
+	indexType   string
 }
 
 type Config struct {
-	Hosts []string `json:"hosts"`
+	Hosts       []string `json:"hosts"`
+	IndexPrefix string   `json:"index"`
+	IndexType   string   `json:"indexType"`
 }
 
 type ESServer struct {
-	host  string
-	hosts []string
-	b     buffer.Sender
-	term  chan bool
+	config Config
+	host   string
+	hosts  []string
+	b      buffer.Sender
+	term   chan bool
 }
 
 func init() {
@@ -64,26 +68,7 @@ func bulkSend(buf *bytes.Buffer) error {
 }
 
 func indexDoc(ev *buffer.Event) *map[string]interface{} {
-	f := *ev.Fields
-	host := f["host"]
-	file := f["file"]
-	timestamp := f["timestamp"]
-	message := strconv.Quote(*ev.Text)
-
-	delete(f, "timestamp")
-	delete(f, "line")
-	delete(f, "host")
-	delete(f, "file")
-
-	return &map[string]interface{}{
-		"@type":        f["type"],
-		"@message":     &message,
-		"@source_path": file,
-		"@source_host": host,
-		"@timestamp":   timestamp,
-		"@fields":      &f,
-		"@source":      ev.Source,
-	}
+	return &*ev.Fields
 }
 
 func (i *Indexer) writeBulk(index string, _type string, data interface{}) error {
@@ -132,8 +117,8 @@ func (i *Indexer) flush() {
 
 func (i *Indexer) index(ev *buffer.Event) {
 	doc := indexDoc(ev)
-	idx := indexName("")
-	typ := (*ev.Fields)["type"].(string)
+	idx := indexName(i.indexPrefix)
+	typ := i.indexType
 
 	i.events++
 	i.writeBulk(idx, typ, doc)
@@ -162,6 +147,7 @@ func (e *ESServer) Init(config json.RawMessage, b buffer.Sender) error {
 		return fmt.Errorf("Error parsing elasticsearch config: %v", err)
 	}
 
+	e.config = *esConfig
 	e.hosts = esConfig.Hosts
 	e.b = b
 
@@ -177,7 +163,7 @@ func (es *ESServer) Start() error {
 	defer es.b.DelSubscriber(es.host)
 
 	// Create indexer
-	idx := &Indexer{0, bytes.NewBuffer(nil)}
+	idx := &Indexer{0, bytes.NewBuffer(nil), es.config.IndexPrefix, es.config.IndexType}
 
 	// Loop events and publish to elasticsearch
 	tick := time.NewTicker(time.Duration(esFlushInterval) * time.Second)

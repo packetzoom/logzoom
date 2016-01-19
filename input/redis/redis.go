@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/adjust/redismq"
@@ -37,20 +38,24 @@ func init() {
 }
 
 func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
-	log.Printf("Reading from Redis")
 	consumer.ResetWorking()
 	packages, err := consumer.MultiGet(recvBuffer)
-	log.Printf("length of packages: %d", len(packages))
 
 	if err == nil {
 		var ev buffer.Event
 
 		for i := range packages {
-			fmt.Println(packages[i].Payload)
-			ev.Text = &packages[i].Payload
+			packages[i].Ack()
 
-			redisServer.receiver.Send(&ev)
-			packages[i].MultiAck()
+			ev.Text = &packages[i].Payload
+			decoder := json.NewDecoder(strings.NewReader(string(*ev.Text)))
+			decoder.UseNumber()
+
+			err = decoder.Decode(&ev.Fields)
+
+			if err == nil {
+				redisServer.receiver.Send(&ev)
+			}
 		}
 	}
 

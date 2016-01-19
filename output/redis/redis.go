@@ -49,6 +49,7 @@ func (redisServer *RedisServer) Init(config json.RawMessage, sender buffer.Sende
 }
 
 func insertToRedis(queue *redismq.BufferedQueue, ev *buffer.Event) error {
+	log.Println("Inserting to redis!")
 	text := *ev.Text
 	return queue.Put(text)
 }

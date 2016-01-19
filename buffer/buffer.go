@@ -63,8 +63,12 @@ func (b *Buffer) Publish(event *Event) {
 	for _, sub := range b.subscribers {
 		select {
 		case sub.Send <- event:
-		case <-b.ticker.C:
 		}
+	}
+
+	select {
+	case <-b.ticker.C:
+		log.Printf("tick")
 	}
 }
 

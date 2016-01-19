@@ -1,16 +1,14 @@
 package elasticsearch
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"time"
 
-	"github.com/hailocab/elastigo/api"
 	"github.com/packetzoom/logslammer/buffer"
 	"github.com/packetzoom/logslammer/output"
+	"gopkg.in/olivere/elastic.v2"
 )
 
 const (
@@ -23,8 +21,7 @@ const (
 )
 
 type Indexer struct {
-	events      int
-	buffer      *bytes.Buffer
+	bulkService *elastic.BulkService
 	indexPrefix string
 	indexType   string
 }
@@ -58,87 +55,30 @@ func indexName(idx string) string {
 	return fmt.Sprintf("%s-%s", idx, time.Now().Format("2006.01.02"))
 }
 
-func bulkSend(buf *bytes.Buffer) error {
-	_, err := api.DoCommand("POST", "/_bulk", buf)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func indexDoc(ev *buffer.Event) *map[string]interface{} {
 	return &*ev.Fields
 }
 
-func (i *Indexer) writeBulk(index string, _type string, data interface{}) error {
-	w := `{"index":{"_index":"%s","_type":"%s"}}`
-
-	i.buffer.WriteString(fmt.Sprintf(w, index, _type))
-	i.buffer.WriteByte('\n')
-
-	switch v := data.(type) {
-	case *bytes.Buffer:
-		io.Copy(i.buffer, v)
-	case []byte:
-		i.buffer.Write(v)
-	case string:
-		i.buffer.WriteString(v)
-	default:
-		body, err := json.Marshal(data)
-		if err != nil {
-			log.Printf("Error writing bulk data: %v", err)
-			return err
-		}
-		i.buffer.Write(body)
-	}
-	i.buffer.WriteByte('\n')
-	return nil
-}
-
 func (i *Indexer) flush() {
-	if i.events == 0 {
-		return
-	}
-
-	log.Printf("Flushing %d event(s) to elasticsearch", i.events)
-	for j := 0; j < 3; j++ {
-		if err := bulkSend(i.buffer); err != nil {
-			log.Printf("Failed to index event (will retry): %v", err)
-			time.Sleep(time.Duration(50) * time.Millisecond)
-			continue
-		}
-		break
-	}
-
-	i.buffer.Reset()
-	i.events = 0
+	log.Printf("Flushing %d event(s) to elasticsearch", i.bulkService.NumberOfActions())
+	i.bulkService.Do()
 }
 
 func (i *Indexer) index(ev *buffer.Event) {
+	log.Printf("Received event here")
 	doc := indexDoc(ev)
 	idx := indexName(i.indexPrefix)
 	typ := i.indexType
 
-	i.events++
-	i.writeBulk(idx, typ, doc)
+	request := elastic.NewBulkIndexRequest().Index(idx).Type(typ).Doc(doc)
+	i.bulkService.Add(request)
+	numEvents := i.bulkService.NumberOfActions()
 
-	if i.events < esSendBuffer {
+	if numEvents < esSendBuffer {
 		return
 	}
 
-	log.Printf("Flushing %d event(s) to elasticsearch", i.events)
-	for j := 0; j < 3; j++ {
-		if err := bulkSend(i.buffer); err != nil {
-			log.Printf("Failed to index event (will retry): %v", err)
-			time.Sleep(time.Duration(50) * time.Millisecond)
-			continue
-		}
-		break
-	}
-
-	i.buffer.Reset()
-	i.events = 0
+	i.flush()
 }
 
 func (e *ESServer) Init(config json.RawMessage, b buffer.Sender) error {
@@ -155,7 +95,14 @@ func (e *ESServer) Init(config json.RawMessage, b buffer.Sender) error {
 }
 
 func (es *ESServer) Start() error {
-	api.SetHosts(es.hosts)
+	client, err := elastic.NewClient(elastic.SetURL(es.hosts...))
+
+	if err != nil {
+		log.Printf("Error starting Elasticsearch: %s", err)
+		return err
+	}
+
+	service := elastic.NewBulkService(client)
 
 	// Add the client as a subscriber
 	receiveChan := make(chan *buffer.Event, esRecvBuffer)
@@ -163,7 +110,7 @@ func (es *ESServer) Start() error {
 	defer es.b.DelSubscriber(es.host)
 
 	// Create indexer
-	idx := &Indexer{0, bytes.NewBuffer(nil), es.config.IndexPrefix, es.config.IndexType}
+	idx := &Indexer{service, es.config.IndexPrefix, es.config.IndexType}
 
 	// Loop events and publish to elasticsearch
 	tick := time.NewTicker(time.Duration(esFlushInterval) * time.Second)

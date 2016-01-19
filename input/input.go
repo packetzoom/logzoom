@@ -4,11 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/packetzoom/logslammer/parser"
+	"github.com/packetzoom/logslammer/buffer"
 )
 
+type Receiver interface {
+	Send(*buffer.Event)
+}
+
 type Input interface {
-	Init(json.RawMessage, parser.Receiver) error
+	Init(json.RawMessage, Receiver) error
 	Start() error
 	Stop() error
 }

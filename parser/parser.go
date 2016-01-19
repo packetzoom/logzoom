@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/packetzoom/logslammer/buffer"
+	"github.com/packetzoom/logslammer/input"
 )
 
 const (
@@ -22,18 +23,14 @@ const (
 	maxValueLen = 250 * 1024 * 1024 // 250 mb
 )
 
-type Receiver interface {
-	Send(*buffer.Event)
-}
-
 type Parser struct {
 	Conn       net.Conn
-	Recv       Receiver
+	Recv       input.Receiver
 	wlen, plen uint32
 	buffer     io.Reader
 }
 
-func New(c net.Conn, r Receiver) *Parser {
+func New(c net.Conn, r input.Receiver) *Parser {
 	return &Parser{
 		Conn: c,
 		Recv: r,

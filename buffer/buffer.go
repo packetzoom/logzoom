@@ -65,11 +65,6 @@ func (b *Buffer) Publish(event *Event) {
 		case sub.Send <- event:
 		}
 	}
-
-	select {
-	case <-b.ticker.C:
-		log.Printf("tick")
-	}
 }
 
 func (b *Buffer) Send(event *Event) {
@@ -92,6 +87,7 @@ func (b *Buffer) Start() {
 		case <-b.term:
 			log.Println("Received on term chan")
 			break
+        case <-b.ticker.C:
 		}
 	}
 }

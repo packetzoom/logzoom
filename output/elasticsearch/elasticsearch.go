@@ -60,8 +60,13 @@ func indexDoc(ev *buffer.Event) *map[string]interface{} {
 }
 
 func (i *Indexer) flush() {
-	log.Printf("Flushing %d event(s) to elasticsearch", i.bulkService.NumberOfActions())
-	i.bulkService.Do()
+	numEvents := i.bulkService.NumberOfActions()
+	log.Printf("Flushing %d event(s) to elasticsearch", numEvents)
+	_, err := i.bulkService.Do()
+
+	if numEvents > 0 && err != nil {
+		log.Printf("Unable to flush events: %s", err)
+	}
 }
 
 func (i *Indexer) index(ev *buffer.Event) {
@@ -95,11 +100,18 @@ func (e *ESServer) Init(config json.RawMessage, b buffer.Sender) error {
 }
 
 func (es *ESServer) Start() error {
-	client, err := elastic.NewClient(elastic.SetURL(es.hosts...))
+	var client *elastic.Client
+	var err error
 
-	if err != nil {
-		log.Printf("Error starting Elasticsearch: %s", err)
-		return err
+	for {
+		client, err = elastic.NewClient(elastic.SetURL(es.hosts...))
+		if err != nil {
+			log.Printf("Error starting Elasticsearch: %s, will retry", err)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		break
 	}
 
 	service := elastic.NewBulkService(client)

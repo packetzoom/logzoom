@@ -8,14 +8,18 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
 	"github.com/packetzoom/logslammer/buffer"
 	"github.com/packetzoom/logslammer/output"
+
+	"github.com/jehiah/go-strftime"
 )
 
 const (
@@ -39,7 +43,7 @@ type Config struct {
 
 	LocalPath       string `json:"localPath"`
 	Path            string `json:"path"`
-	TimeSliceFormat string `json:"path"`
+	TimeSliceFormat string `json:"timeSliceFormat"`
 	AwsS3OutputKey  string `json:"awsS3OutputKey"`
 }
 
@@ -100,12 +104,33 @@ func (s3Writer *S3Writer) uploadToS3(fileSaver *FileSaver) error {
 		return err
 	}
 
-	_, s3Error := s3Writer.S3Uploader.Upload(&s3manager.UploadInput{
+	curTime := time.Now()
+	hostname, _ := os.Hostname()
+	timeKey := strftime.Format(s3Writer.Config.TimeSliceFormat, curTime)
+
+	values_for_s3_object_key := map[string]string{
+		"path":      s3Writer.Config.Path,
+		"timeSlice": timeKey,
+		"hostname":  hostname,
+		"uuid":      uuid(),
+	}
+
+	destFile := s3Writer.Config.AwsS3OutputKey
+
+	for key, value := range values_for_s3_object_key {
+		expr := "%{" + key + "}"
+		log.Printf("replace key: %s with %s", expr, value)
+		destFile = strings.Replace(destFile, expr, value, -1)
+	}
+
+	result, s3Error := s3Writer.S3Uploader.Upload(&s3manager.UploadInput{
 		Body:            reader,
 		Bucket:          aws.String(s3Writer.Config.AwsS3Bucket),
-		Key:             aws.String(s3Writer.Config.AwsKeyId),
+		Key:             aws.String(destFile),
 		ContentEncoding: aws.String("gzip"),
 	})
+
+	log.Printf("%s written to S3", result.Location)
 
 	if s3Error == nil {
 		os.Remove(filename)
@@ -138,9 +163,23 @@ func (s3Writer *S3Writer) Init(config json.RawMessage, sender buffer.Sender) err
 	s3Writer.Config = *s3Config
 	s3Writer.Sender = sender
 
-	session := session.New(&aws.Config{Region: &s3Writer.Config.AwsS3Region})
-	s3Writer.S3Uploader = s3manager.NewUploader(session)
+	aws_access_key_id := s3Writer.Config.AwsKeyId
+	aws_secret_access_key := s3Writer.Config.AwsSecKey
 
+	token := ""
+	creds := credentials.NewStaticCredentials(aws_access_key_id, aws_secret_access_key, token)
+	_, err := creds.Get()
+
+	if err != nil {
+		log.Fatalf("Error with AWS credentials:", err)
+	}
+
+	session := session.New(&aws.Config{
+		Region:      &s3Writer.Config.AwsS3Region,
+		Credentials: creds,
+	})
+
+	s3Writer.S3Uploader = s3manager.NewUploader(session)
 	log.Println("Done instantiating uploader")
 
 	return nil

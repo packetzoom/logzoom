@@ -1,15 +1,17 @@
 package s3
 
 import (
-	"bytes"
 	"compress/gzip"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"path"
 	"time"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
 	"github.com/packetzoom/logslammer/buffer"
 	"github.com/packetzoom/logslammer/output"
@@ -41,50 +43,60 @@ type Config struct {
 }
 
 type FileSaver struct {
-	Config Config
-	Buffer bytes.Buffer
-	Writer *gzip.Writer
+	Config   Config
+	Writer   *gzip.Writer
+	Filename string
 }
 
 func (fileSaver *FileSaver) writeToFile(event *buffer.Event) error {
 	if fileSaver.Writer == nil {
-		fileSaver.Writer = gzip.NewWriter(&fileSaver.Buffer)
-	}
-
-	text := *event.Text
-	fileSaver.Writer.Write([]byte(text))
-	fileSaver.Writer.Write([]byte("\n"))
-	return nil
-}
-
-func (fileSaver *FileSaver) flushToS3() error {
-	if fileSaver.Buffer.Len() > 0 {
+		log.Println("Creating new S3 gzip writer")
 		file, err := ioutil.TempFile(fileSaver.Config.LocalPath, "s3_output_")
 
 		if err != nil {
-			log.Printf("Error creating temporary file: %s", filename)
+			log.Printf("Error creating temporary file:", err)
 		}
 
-		log.Printf("Flushing %s", file.Name())
-		fileSaver.Writer.Close()
-		fileSaver.Writer = nil
-		err = ioutil.WriteFile(file.Name(), fileSaver.Buffer.Bytes(), 0666)
-
-		if err == nil {
-			fileSaver.Buffer.Reset()
-		} else {
-			log.Printf("Error saving file: %s", err)
-			return err
-		}
+		fileSaver.Writer = gzip.NewWriter(file)
 	}
+
+	log.Println("Writing data to file")
+	text := *event.Text
+	_, err := fileSaver.Writer.Write([]byte(text))
+
+	if err != nil {
+		log.Println("Error writing:", err)
+		return err
+	}
+
+	_, err = fileSaver.Writer.Write([]byte("\n"))
+
+	if err != nil {
+		log.Println("Error writing:", err)
+		return err
+	}
+
+	return nil
+}
+
+func (s3Writer *S3Writer) uploadToS3(fileSaver *FileSaver) error {
+	log.Println("Upload to S3!")
+	if fileSaver.Writer == nil {
+		return nil
+	}
+
+	fileSaver.Writer.Close()
+
+	// 1. Upload to S3 and remove file
 
 	return nil
 }
 
 type S3Writer struct {
-	Config Config
-	Sender buffer.Sender
-	term   chan bool
+	Config     Config
+	Sender     buffer.Sender
+	S3Uploader *s3manager.Uploader
+	term       chan bool
 }
 
 func init() {
@@ -101,6 +113,12 @@ func (s3Writer *S3Writer) Init(config json.RawMessage, sender buffer.Sender) err
 
 	s3Writer.Config = *s3Config
 	s3Writer.Sender = sender
+
+	session := session.New(&aws.Config{Region: &s3Writer.Config.AwsS3Region})
+	s3Writer.S3Uploader = s3manager.NewUploader(session)
+
+	log.Println("Done instantiating uploader")
+
 	return nil
 }
 
@@ -129,7 +147,7 @@ func (s3Writer *S3Writer) Start() error {
 		case ev := <-receiveChan:
 			fileSaver.writeToFile(ev)
 		case <-tick.C:
-			fileSaver.flushToS3()
+			go s3Writer.uploadToS3(fileSaver)
 		case <-s3Writer.term:
 			log.Println("S3Writer received term signal")
 			return nil

@@ -41,9 +41,9 @@ func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 	consumer.ResetWorking()
 
 	for {
-        if consumer.HasUnacked() {
-            consumer.RequeueWorking()
-        }
+		if consumer.HasUnacked() {
+			consumer.RequeueWorking()
+		}
 
 		packages, err := consumer.MultiGet(recvBuffer)
 

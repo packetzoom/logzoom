@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -58,6 +59,7 @@ func (fileSaver *FileSaver) writeToFile(event *buffer.Event) error {
 		}
 
 		fileSaver.Writer = gzip.NewWriter(file)
+		fileSaver.Filename = file.Name()
 	}
 
 	log.Println("Writing data to file")
@@ -80,16 +82,38 @@ func (fileSaver *FileSaver) writeToFile(event *buffer.Event) error {
 }
 
 func (s3Writer *S3Writer) uploadToS3(fileSaver *FileSaver) error {
-	log.Println("Upload to S3!")
 	if fileSaver.Writer == nil {
 		return nil
 	}
 
-	fileSaver.Writer.Close()
+	log.Println("Upload to S3!")
+	writer := fileSaver.Writer
+	filename := fileSaver.Filename
+	fileSaver.Writer = nil
+	writer.Close()
 
-	// 1. Upload to S3 and remove file
+	log.Printf("Opening file %s\n", filename)
+	reader, err := os.Open(filename)
 
-	return nil
+	if err != nil {
+		log.Printf("Failed to open file:", err)
+		return err
+	}
+
+	_, s3Error := s3Writer.S3Uploader.Upload(&s3manager.UploadInput{
+		Body:            reader,
+		Bucket:          aws.String(s3Writer.Config.AwsS3Bucket),
+		Key:             aws.String(s3Writer.Config.AwsKeyId),
+		ContentEncoding: aws.String("gzip"),
+	})
+
+	if s3Error == nil {
+		os.Remove(filename)
+	} else {
+		log.Printf("Error uploading to S3", s3Error)
+	}
+
+	return s3Error
 }
 
 type S3Writer struct {
@@ -118,12 +142,6 @@ func (s3Writer *S3Writer) Init(config json.RawMessage, sender buffer.Sender) err
 	s3Writer.S3Uploader = s3manager.NewUploader(session)
 
 	log.Println("Done instantiating uploader")
-
-	return nil
-}
-
-func insertToS3(ev *buffer.Event) error {
-	log.Println("Inserting to s3!")
 
 	return nil
 }

@@ -18,11 +18,11 @@ const (
 )
 
 type Config struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Db       int64  `json:"db"`
-	Password string `json:"password"`
-	KeyName  string `json:"keyName"`
+	Host     string   `json:"host"`
+	Port     int      `json:"port"`
+	Db       int64    `json:"db"`
+	Password string   `json:"password"`
+	Keys     []string `json:"keys"`
 }
 
 type RedisServer struct {
@@ -67,14 +67,19 @@ func (redisServer *RedisServer) Start() error {
 
 	port := strconv.Itoa(redisServer.config.Port)
 
+	allQueues := make([]*redismq.BufferedQueue, len(redisServer.config.Keys))
+
 	// Create Redis queue
-	queue := redismq.CreateBufferedQueue(redisServer.config.Host,
-		port,
-		redisServer.config.Password,
-		redisServer.config.Db,
-		redisServer.config.KeyName,
-		recvBuffer)
-	queue.Start()
+	for index, key := range redisServer.config.Keys {
+		queue := redismq.CreateBufferedQueue(redisServer.config.Host,
+			port,
+			redisServer.config.Password,
+			redisServer.config.Db,
+			key,
+			recvBuffer)
+		queue.Start()
+		allQueues[index] = queue
+	}
 
 	// Loop events and publish to Redis
 	tick := time.NewTicker(time.Duration(redisFlushInterval) * time.Second)
@@ -82,9 +87,13 @@ func (redisServer *RedisServer) Start() error {
 	for {
 		select {
 		case ev := <-receiveChan:
-			go insertToRedis(queue, ev)
+			for _, queue := range allQueues {
+				go insertToRedis(queue, ev)
+			}
 		case <-tick.C:
-			go flushQueue(queue)
+			for _, queue := range allQueues {
+				go flushQueue(queue)
+			}
 		case <-redisServer.term:
 			log.Println("RedisServer received term signal")
 			return nil

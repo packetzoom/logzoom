@@ -39,27 +39,37 @@ func init() {
 
 func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 	consumer.ResetWorking()
-	packages, err := consumer.MultiGet(recvBuffer)
 
-	if err == nil {
-		var ev buffer.Event
+	for {
+        if consumer.HasUnacked() {
+            consumer.RequeueWorking()
+        }
 
-		for i := range packages {
-			packages[i].Ack()
+		packages, err := consumer.MultiGet(recvBuffer)
 
-			ev.Text = &packages[i].Payload
-			decoder := json.NewDecoder(strings.NewReader(string(*ev.Text)))
-			decoder.UseNumber()
+		if err == nil {
+			var ev buffer.Event
 
-			err = decoder.Decode(&ev.Fields)
+			for i := range packages {
+				packages[i].Ack()
 
-			if err == nil {
-				redisServer.receiver.Send(&ev)
+				ev.Text = &packages[i].Payload
+				decoder := json.NewDecoder(strings.NewReader(string(*ev.Text)))
+				decoder.UseNumber()
+
+				err = decoder.Decode(&ev.Fields)
+
+				if err == nil {
+					redisServer.receiver.Send(&ev)
+				}
 			}
+		} else {
+			log.Printf("Error reading from Redis: %s, sleeping", err)
+			time.Sleep(2 * time.Second)
 		}
 	}
 
-	return err
+	return nil
 }
 
 func (redisServer *RedisInputServer) Init(config json.RawMessage, receiver input.Receiver) error {
@@ -87,21 +97,18 @@ func (redisServer *RedisInputServer) Start() error {
 
 	consumer, err := queue.AddConsumer("redisInput")
 
-	// Read from Redis every second
-	tick := time.NewTicker(time.Duration(1) * time.Second)
-
 	if err != nil {
 		log.Println("Error opening Redis input")
 		return err
 	}
+
+	go redisGet(redisServer, consumer)
 
 	for {
 		select {
 		case <-redisServer.term:
 			log.Println("Redis input server received term signal")
 			return nil
-		case <-tick.C:
-			go redisGet(redisServer, consumer)
 		}
 	}
 

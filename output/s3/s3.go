@@ -119,7 +119,6 @@ func (s3Writer *S3Writer) uploadToS3(fileSaver *FileSaver) error {
 
 	for key, value := range values_for_s3_object_key {
 		expr := "%{" + key + "}"
-		log.Printf("replace key: %s with %s", expr, value)
 		destFile = strings.Replace(destFile, expr, value, -1)
 	}
 

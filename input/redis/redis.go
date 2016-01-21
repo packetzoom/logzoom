@@ -44,7 +44,7 @@ func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 		unacked := consumer.GetUnackedLength()
 
 		if unacked > 0 {
-			fmt.Println("Requeued %d messages", unacked)
+			fmt.Printf("Requeued %d messages\n", unacked)
 			consumer.RequeueWorking()
 		}
 
@@ -52,10 +52,15 @@ func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 
 		if err == nil {
 			var ev buffer.Event
-			packageLength := len(packages)
 
-			if packageLength > 0 {
-				packages[packageLength-1].MultiAck()
+			numPackages := len(packages)
+
+			if numPackages > 0 {
+				err = packages[numPackages-1].MultiAck()
+
+				if err != nil {
+					log.Println("Failed to ack", err)
+				}
 			}
 
 			for i := range packages {

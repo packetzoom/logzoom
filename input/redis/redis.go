@@ -41,7 +41,10 @@ func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 	consumer.ResetWorking()
 
 	for {
-		if consumer.HasUnacked() {
+		unacked := consumer.GetUnackedLength()
+
+		if unacked > 0 {
+			fmt.Println("Requeued %d messages", unacked)
 			consumer.RequeueWorking()
 		}
 
@@ -49,10 +52,13 @@ func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 
 		if err == nil {
 			var ev buffer.Event
+			packageLength := len(packages)
+
+			if packageLength > 0 {
+				packages[packageLength-1].MultiAck()
+			}
 
 			for i := range packages {
-				packages[i].Ack()
-
 				ev.Text = &packages[i].Payload
 				decoder := json.NewDecoder(strings.NewReader(string(*ev.Text)))
 				decoder.UseNumber()

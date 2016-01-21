@@ -65,6 +65,7 @@ func (fileSaver *FileSaver) writeToFile(event *buffer.Event) error {
 
 		fileSaver.Writer = gzip.NewWriter(file)
 		fileSaver.Filename = file.Name()
+		fileSaver.Count = 0
 	}
 
 	text := *event.Text

@@ -51,8 +51,6 @@ func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 		packages, err := consumer.MultiGet(recvBuffer)
 
 		if err == nil {
-			var ev buffer.Event
-
 			numPackages := len(packages)
 
 			if numPackages > 0 {
@@ -64,6 +62,7 @@ func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 			}
 
 			for i := range packages {
+				var ev buffer.Event
 				ev.Text = &packages[i].Payload
 				decoder := json.NewDecoder(strings.NewReader(string(*ev.Text)))
 				decoder.UseNumber()

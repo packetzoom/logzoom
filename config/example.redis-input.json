@@ -1,0 +1,17 @@
+{
+    "inputs": {
+        "lumberjack": {
+            "host": "0.0.0.0:5000",
+            "ssl_crt": "/etc/filebeat/logstash-forwarder.crt",
+            "ssl_key": "/etc/filebeat/logstash-forwarder.key"
+        }
+    },
+    "outputs": {
+        "redis": {
+            "db": 10,
+            "host": "localhost",
+            "keys": ["elasticsearch", "s3"],
+            "port": 6379
+        }
+    }
+}

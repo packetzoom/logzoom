@@ -61,16 +61,18 @@ func indexDoc(ev *buffer.Event) *map[string]interface{} {
 
 func (i *Indexer) flush() {
 	numEvents := i.bulkService.NumberOfActions()
-	log.Printf("Flushing %d event(s) to elasticsearch", numEvents)
-	_, err := i.bulkService.Do()
 
-	if numEvents > 0 && err != nil {
-		log.Printf("Unable to flush events: %s", err)
+	if numEvents > 0 {
+		log.Printf("Flushing %d event(s) to elasticsearch", numEvents)
+		_, err := i.bulkService.Do()
+
+		if err != nil {
+			log.Printf("Unable to flush events: %s", err)
+		}
 	}
 }
 
 func (i *Indexer) index(ev *buffer.Event) {
-	log.Printf("Received event here")
 	doc := indexDoc(ev)
 	idx := indexName(i.indexPrefix)
 	typ := i.indexType

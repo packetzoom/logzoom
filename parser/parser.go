@@ -41,7 +41,7 @@ func New(c net.Conn, r input.Receiver) *Parser {
 func (p *Parser) ack(seq uint32) error {
 	buffer := bytes.NewBuffer([]byte(ack))
 	binary.Write(buffer, binary.BigEndian, seq)
-	log.Printf("Sending ACK with seq %d", seq)
+	//log.Printf("Sending ACK with seq %d", seq)
 
 	if _, err := p.Conn.Write(buffer.Bytes()); err != nil {
 		return err
@@ -138,12 +138,12 @@ func (p *Parser) read() (uint32, error) {
 			// Send to the receiver which is a buffer. We block because...
 			p.Recv.Send(&ev)
 		case "2J": // JSON
-			log.Printf("Got JSON data")
+			//log.Printf("Got JSON data")
 			binary.Read(buff, binary.BigEndian, &seq)
 			binary.Read(buff, binary.BigEndian, &count)
 			jsonData := make([]byte, count)
 			_, err := p.buffer.Read(jsonData)
-			log.Printf("Got message: %s", jsonData)
+			//log.Printf("Got message: %s", jsonData)
 
 			if err != nil {
 				return seq, err

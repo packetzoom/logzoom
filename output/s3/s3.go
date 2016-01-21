@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	s3FlushInterval = 5
+	s3FlushInterval = 10
 	recvBuffer      = 100
 )
 
@@ -51,6 +51,7 @@ type FileSaver struct {
 	Config   Config
 	Writer   *gzip.Writer
 	Filename string
+	Count    int
 }
 
 func (fileSaver *FileSaver) writeToFile(event *buffer.Event) error {
@@ -66,7 +67,6 @@ func (fileSaver *FileSaver) writeToFile(event *buffer.Event) error {
 		fileSaver.Filename = file.Name()
 	}
 
-	log.Println("Writing data to file")
 	text := *event.Text
 	_, err := fileSaver.Writer.Write([]byte(text))
 
@@ -81,6 +81,8 @@ func (fileSaver *FileSaver) writeToFile(event *buffer.Event) error {
 		log.Println("Error writing:", err)
 		return err
 	}
+
+	fileSaver.Count += 1
 
 	return nil
 }
@@ -129,7 +131,7 @@ func (s3Writer *S3Writer) uploadToS3(fileSaver *FileSaver) error {
 		ContentEncoding: aws.String("gzip"),
 	})
 
-	log.Printf("%s written to S3", result.Location)
+	log.Printf("%d events written to S3 %s", fileSaver.Count, result.Location)
 
 	if s3Error == nil {
 		os.Remove(filename)

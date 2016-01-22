@@ -19,11 +19,12 @@ const (
 )
 
 type Config struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Db       int64  `json:"db"`
-	Password string `json:"password"`
-	KeyName  string `json:"keyName"`
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	Db         int64  `json:"db"`
+	Password   string `json:"password"`
+	KeyName    string `json:"keyName"`
+	JsonDecode bool   `json:"decode"`
 }
 
 type RedisInputServer struct {
@@ -68,14 +69,19 @@ func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 				var ev buffer.Event
 				payload := string(packages[i].Payload)
 				ev.Text = &payload
-				decoder := json.NewDecoder(strings.NewReader(payload))
-				decoder.UseNumber()
 
-				err = decoder.Decode(&ev.Fields)
+				if redisServer.config.JsonDecode {
+					decoder := json.NewDecoder(strings.NewReader(payload))
+					decoder.UseNumber()
 
-				if err == nil {
-					redisServer.receiver.Send(&ev)
+					err = decoder.Decode(&ev.Fields)
+
+					if err != nil {
+						continue
+					}
 				}
+
+				redisServer.receiver.Send(&ev)
 			}
 		} else {
 			log.Printf("Error reading from Redis: %s, sleeping", err)

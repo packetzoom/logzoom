@@ -58,10 +58,6 @@ func indexName(idx string) string {
 	return fmt.Sprintf("%s-%s", idx, time.Now().Format("2006.01.02"))
 }
 
-func indexDoc(ev *buffer.Event) *map[string]interface{} {
-	return &*ev.Fields
-}
-
 func (i *Indexer) flush() error {
 	numEvents := i.bulkService.NumberOfActions()
 
@@ -84,7 +80,7 @@ func (i *Indexer) flush() error {
 }
 
 func (i *Indexer) index(ev *buffer.Event) error {
-	doc := indexDoc(ev)
+	doc := *ev.Text
 	idx := indexName(i.indexPrefix)
 	typ := i.indexType
 

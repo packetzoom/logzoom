@@ -8,6 +8,7 @@ import (
 
 	"github.com/packetzoom/logslammer/buffer"
 	"github.com/packetzoom/logslammer/output"
+	"github.com/paulbellamy/ratecounter"
 	"gopkg.in/olivere/elastic.v2"
 )
 
@@ -24,6 +25,7 @@ type Indexer struct {
 	bulkService *elastic.BulkService
 	indexPrefix string
 	indexType   string
+	RateCounter *ratecounter.RateCounter
 }
 
 type Config struct {
@@ -63,7 +65,7 @@ func (i *Indexer) flush() error {
 	numEvents := i.bulkService.NumberOfActions()
 
 	if numEvents > 0 {
-		log.Printf("Flushing %d event(s) to elasticsearch", numEvents)
+		//log.Printf("Flushing %d event(s) to elasticsearch", numEvents)
 		_, err := i.bulkService.Do()
 
 		if err != nil {
@@ -83,6 +85,7 @@ func (i *Indexer) index(ev *buffer.Event) error {
 
 	request := elastic.NewBulkIndexRequest().Index(idx).Type(typ).Doc(doc)
 	i.bulkService.Add(request)
+	i.RateCounter.Incr(1)
 
 	numEvents := i.bulkService.NumberOfActions()
 
@@ -145,8 +148,10 @@ func (es *ESServer) Start() error {
 	es.b.AddSubscriber(es.host, receiveChan)
 	defer es.b.DelSubscriber(es.host)
 
+	rateCounter := ratecounter.NewRateCounter(1 * time.Second)
+
 	// Create indexer
-	idx := &Indexer{service, es.config.IndexPrefix, es.config.IndexType}
+	idx := &Indexer{service, es.config.IndexPrefix, es.config.IndexType, rateCounter}
 
 	// Loop events and publish to elasticsearch
 	tick := time.NewTicker(time.Duration(esFlushInterval) * time.Second)
@@ -156,6 +161,7 @@ func (es *ESServer) Start() error {
 	for {
 		select {
 		case <-tick.C:
+			log.Printf("Current Elasticsearch output rate: %d/s\n", rateCounter.Rate())
 			idx.flush()
 		case <-es.term:
 			tick.Stop()

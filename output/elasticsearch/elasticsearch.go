@@ -59,7 +59,7 @@ func indexDoc(ev *buffer.Event) *map[string]interface{} {
 	return &*ev.Fields
 }
 
-func (i *Indexer) flush() {
+func (i *Indexer) flush() error {
 	numEvents := i.bulkService.NumberOfActions()
 
 	if numEvents > 0 {
@@ -69,23 +69,28 @@ func (i *Indexer) flush() {
 		if err != nil {
 			log.Printf("Unable to flush events: %s", err)
 		}
+
+		return err
 	}
+
+	return nil
 }
 
-func (i *Indexer) index(ev *buffer.Event) {
+func (i *Indexer) index(ev *buffer.Event) error {
 	doc := indexDoc(ev)
 	idx := indexName(i.indexPrefix)
 	typ := i.indexType
 
 	request := elastic.NewBulkIndexRequest().Index(idx).Type(typ).Doc(doc)
 	i.bulkService.Add(request)
+
 	numEvents := i.bulkService.NumberOfActions()
 
 	if numEvents < esSendBuffer {
-		return
+		return nil
 	}
 
-	i.flush()
+	return i.flush()
 }
 
 func (e *ESServer) Init(config json.RawMessage, b buffer.Sender) error {
@@ -99,6 +104,20 @@ func (e *ESServer) Init(config json.RawMessage, b buffer.Sender) error {
 	e.b = b
 
 	return nil
+}
+
+func readInputChannel(idx *Indexer, receiveChan chan *buffer.Event) {
+	for {
+		if idx.bulkService.NumberOfActions() < esSendBuffer {
+			select {
+			case ev := <-receiveChan:
+				idx.index(ev)
+			}
+		} else {
+			log.Printf("Internal Elasticsearch buffer is full, waiting")
+			time.Sleep(1 * time.Second)
+		}
+	}
 }
 
 func (es *ESServer) Start() error {
@@ -116,6 +135,8 @@ func (es *ESServer) Start() error {
 		break
 	}
 
+	log.Printf("Connected to Elasticsarch")
+
 	service := elastic.NewBulkService(client)
 
 	// Add the client as a subscriber
@@ -129,10 +150,11 @@ func (es *ESServer) Start() error {
 	// Loop events and publish to elasticsearch
 	tick := time.NewTicker(time.Duration(esFlushInterval) * time.Second)
 
+	// Drain the channel only if we have room
+	go readInputChannel(idx, receiveChan)
+
 	for {
 		select {
-		case ev := <-receiveChan:
-			idx.index(ev)
 		case <-tick.C:
 			idx.flush()
 		case <-es.term:

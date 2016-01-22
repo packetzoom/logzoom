@@ -108,6 +108,7 @@ func (e *ESServer) Init(config json.RawMessage, b buffer.Sender) error {
 
 func readInputChannel(idx *Indexer, receiveChan chan *buffer.Event) {
 	for {
+		// Drain the channel only if we have room
 		if idx.bulkService.NumberOfActions() < esSendBuffer {
 			select {
 			case ev := <-receiveChan:
@@ -150,7 +151,6 @@ func (es *ESServer) Start() error {
 	// Loop events and publish to elasticsearch
 	tick := time.NewTicker(time.Duration(esFlushInterval) * time.Second)
 
-	// Drain the channel only if we have room
 	go readInputChannel(idx, receiveChan)
 
 	for {

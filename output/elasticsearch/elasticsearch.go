@@ -22,10 +22,11 @@ const (
 )
 
 type Indexer struct {
-	bulkService *elastic.BulkService
-	indexPrefix string
-	indexType   string
-	RateCounter *ratecounter.RateCounter
+	bulkService       *elastic.BulkService
+	indexPrefix       string
+	indexType         string
+	RateCounter       *ratecounter.RateCounter
+	lastDisplayUpdate time.Time
 }
 
 type Config struct {
@@ -65,7 +66,11 @@ func (i *Indexer) flush() error {
 	numEvents := i.bulkService.NumberOfActions()
 
 	if numEvents > 0 {
-		log.Printf("Flushing %d event(s) to Elasticsearch, current rate: %d/s", numEvents, i.RateCounter.Rate())
+		if time.Now().Sub(i.lastDisplayUpdate) >= time.Duration(1*time.Second) {
+			log.Printf("Flushing %d event(s) to Elasticsearch, current rate: %d/s", numEvents, i.RateCounter.Rate())
+			i.lastDisplayUpdate = time.Now()
+		}
+
 		_, err := i.bulkService.Do()
 
 		if err != nil {
@@ -151,7 +156,7 @@ func (es *ESServer) Start() error {
 	rateCounter := ratecounter.NewRateCounter(1 * time.Second)
 
 	// Create indexer
-	idx := &Indexer{service, es.config.IndexPrefix, es.config.IndexType, rateCounter}
+	idx := &Indexer{service, es.config.IndexPrefix, es.config.IndexType, rateCounter, time.Now()}
 
 	// Loop events and publish to elasticsearch
 	tick := time.NewTicker(time.Duration(esFlushInterval) * time.Second)

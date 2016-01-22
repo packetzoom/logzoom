@@ -10,10 +10,12 @@ import (
 	"github.com/adjust/redismq"
 	"github.com/packetzoom/logslammer/buffer"
 	"github.com/packetzoom/logslammer/output"
+    "github.com/paulbellamy/ratecounter"
 )
 
 const (
 	redisFlushInterval = 5
+	rateDisplayInterval = 10
 	recvBuffer         = 100
 )
 
@@ -66,7 +68,7 @@ func insertToRedis(queue *redismq.BufferedQueue, ev *buffer.Event) error {
 
 func flushQueue(queue *redismq.BufferedQueue) error {
 	if len(queue.Buffer) > 0 {
-		log.Printf("Flushing %d events to Redis", len(queue.Buffer))
+	//	log.Printf("Flushing %d events to Redis", len(queue.Buffer))
 	}
 
 	queue.FlushBuffer()
@@ -97,14 +99,18 @@ func (redisServer *RedisServer) Start() error {
 
 	// Loop events and publish to Redis
 	tick := time.NewTicker(time.Duration(redisFlushInterval) * time.Second)
+    rateCounter := ratecounter.NewRateCounter(1 * time.Second)
 
 	for {
 		select {
 		case ev := <-receiveChan:
+            rateCounter.Incr(1)
 			for _, queue := range allQueues {
 				go insertToRedis(queue, ev)
 			}
 		case <-tick.C:
+            log.Printf("Current Redis input rate: %d/s\n", rateCounter.Rate())
+
 			for _, queue := range allQueues {
 				go flushQueue(queue)
 			}

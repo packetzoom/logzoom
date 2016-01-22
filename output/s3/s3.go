@@ -20,6 +20,7 @@ import (
 	"github.com/packetzoom/logslammer/output"
 
 	"github.com/jehiah/go-strftime"
+	"github.com/paulbellamy/ratecounter"
 )
 
 const (
@@ -48,10 +49,11 @@ type Config struct {
 }
 
 type FileSaver struct {
-	Config   Config
-	Writer   *gzip.Writer
-	Filename string
-	Count    int
+	Config      Config
+	Writer      *gzip.Writer
+	Filename    string
+	Count       int
+	RateCounter *ratecounter.RateCounter
 }
 
 func (fileSaver *FileSaver) writeToFile(event *buffer.Event) error {
@@ -84,6 +86,7 @@ func (fileSaver *FileSaver) writeToFile(event *buffer.Event) error {
 	}
 
 	fileSaver.Count += 1
+	fileSaver.RateCounter.Incr(1)
 
 	return nil
 }
@@ -93,7 +96,7 @@ func (s3Writer *S3Writer) uploadToS3(fileSaver *FileSaver) error {
 		return nil
 	}
 
-	log.Println("Upload to S3!")
+	log.Printf("Upload to S3, current event rate: %d/s\n", fileSaver.RateCounter.Rate())
 	writer := fileSaver.Writer
 	filename := fileSaver.Filename
 	fileSaver.Writer = nil
@@ -191,6 +194,7 @@ func (s3Writer *S3Writer) Start() error {
 	// Create file saver
 	fileSaver := new(FileSaver)
 	fileSaver.Config = s3Writer.Config
+	fileSaver.RateCounter = ratecounter.NewRateCounter(1 * time.Second)
 
 	id := "s3_output"
 	// Add the client as a subscriber

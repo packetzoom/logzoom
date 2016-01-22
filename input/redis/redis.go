@@ -11,6 +11,7 @@ import (
 	"github.com/adjust/redismq"
 	"github.com/packetzoom/logslammer/buffer"
 	"github.com/packetzoom/logslammer/input"
+	"github.com/paulbellamy/ratecounter"
 )
 
 const (
@@ -39,6 +40,7 @@ func init() {
 
 func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 	consumer.ResetWorking()
+	rateCounter := ratecounter.NewRateCounter(1 * time.Second)
 
 	for {
 		unacked := consumer.GetUnackedLength()
@@ -54,6 +56,7 @@ func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 			numPackages := len(packages)
 
 			if numPackages > 0 {
+				rateCounter.Incr(int64(numPackages))
 				err = packages[numPackages-1].MultiAck()
 
 				if err != nil {

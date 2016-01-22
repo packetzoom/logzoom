@@ -65,7 +65,7 @@ func (i *Indexer) flush() error {
 	numEvents := i.bulkService.NumberOfActions()
 
 	if numEvents > 0 {
-		//log.Printf("Flushing %d event(s) to elasticsearch", numEvents)
+		log.Printf("Flushing %d event(s) to Elasticsearch, current rate: %d/s", numEvents, i.RateCounter.Rate())
 		_, err := i.bulkService.Do()
 
 		if err != nil {
@@ -139,7 +139,7 @@ func (es *ESServer) Start() error {
 		break
 	}
 
-	log.Printf("Connected to Elasticsarch")
+	log.Printf("Connected to Elasticsearch")
 
 	service := elastic.NewBulkService(client)
 
@@ -156,12 +156,11 @@ func (es *ESServer) Start() error {
 	// Loop events and publish to elasticsearch
 	tick := time.NewTicker(time.Duration(esFlushInterval) * time.Second)
 
-	go readInputChannel(idx, receiveChan)
-
 	for {
+		readInputChannel(idx, receiveChan)
+
 		select {
 		case <-tick.C:
-			log.Printf("Current Elasticsearch output rate: %d/s\n", rateCounter.Rate())
 			idx.flush()
 		case <-es.term:
 			tick.Stop()

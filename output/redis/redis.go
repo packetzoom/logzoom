@@ -109,7 +109,7 @@ func (redisServer *RedisServer) Start() error {
 				go insertToRedis(queue, ev)
 			}
 		case <-tick.C:
-			if rateConter.Rate() > 0 {
+			if rateCounter.Rate() > 0 {
 				log.Printf("Current Redis input rate: %d/s\n", rateCounter.Rate())
 			}
 

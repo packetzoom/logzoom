@@ -47,7 +47,7 @@ func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 		unacked := consumer.GetUnackedLength()
 
 		if unacked > 0 {
-			fmt.Printf("Requeued %d messages\n", unacked)
+			log.Printf("Requeued %d messages\n", unacked)
 			consumer.RequeueWorking()
 		}
 

@@ -24,8 +24,9 @@ import (
 )
 
 const (
-	s3FlushInterval = 10
-	recvBuffer      = 100
+	s3FlushInterval        = 10
+	recvBuffer             = 100
+	maxSimultaneousUploads = 8
 )
 
 func uuid() string {
@@ -48,15 +49,19 @@ type Config struct {
 	AwsS3OutputKey  string `json:"awsS3OutputKey"`
 }
 
+type OutputFileInfo struct {
+	Filename string
+	Count    int
+}
+
 type FileSaver struct {
 	Config      Config
 	Writer      *gzip.Writer
-	Filename    string
-	Count       int
+	FileInfo    OutputFileInfo
 	RateCounter *ratecounter.RateCounter
 }
 
-func (fileSaver *FileSaver) writeToFile(event *buffer.Event) error {
+func (fileSaver *FileSaver) WriteToFile(event *buffer.Event) error {
 	if fileSaver.Writer == nil {
 		log.Println("Creating new S3 gzip writer")
 		file, err := ioutil.TempFile(fileSaver.Config.LocalPath, "s3_output_")
@@ -66,8 +71,8 @@ func (fileSaver *FileSaver) writeToFile(event *buffer.Event) error {
 		}
 
 		fileSaver.Writer = gzip.NewWriter(file)
-		fileSaver.Filename = file.Name()
-		fileSaver.Count = 0
+		fileSaver.FileInfo.Filename = file.Name()
+		fileSaver.FileInfo.Count = 0
 	}
 
 	text := *event.Text
@@ -85,25 +90,15 @@ func (fileSaver *FileSaver) writeToFile(event *buffer.Event) error {
 		return err
 	}
 
-	fileSaver.Count += 1
+	fileSaver.FileInfo.Count += 1
 	fileSaver.RateCounter.Incr(1)
 
 	return nil
 }
 
-func (s3Writer *S3Writer) uploadToS3(fileSaver *FileSaver) error {
-	if fileSaver.Writer == nil {
-		return nil
-	}
-
-	log.Printf("Upload to S3, current event rate: %d/s\n", fileSaver.RateCounter.Rate())
-	writer := fileSaver.Writer
-	filename := fileSaver.Filename
-	fileSaver.Writer = nil
-	writer.Close()
-
-	log.Printf("Opening file %s\n", filename)
-	reader, err := os.Open(filename)
+func (s3Writer *S3Writer) doUpload(fileInfo OutputFileInfo) error {
+	log.Printf("Opening file %s\n", fileInfo.Filename)
+	reader, err := os.Open(fileInfo.Filename)
 
 	if err != nil {
 		log.Printf("Failed to open file:", err)
@@ -114,7 +109,7 @@ func (s3Writer *S3Writer) uploadToS3(fileSaver *FileSaver) error {
 	hostname, _ := os.Hostname()
 	timeKey := strftime.Format(s3Writer.Config.TimeSliceFormat, curTime)
 
-	values_for_s3_object_key := map[string]string{
+	valuesForKey := map[string]string{
 		"path":      s3Writer.Config.Path,
 		"timeSlice": timeKey,
 		"hostname":  hostname,
@@ -123,7 +118,7 @@ func (s3Writer *S3Writer) uploadToS3(fileSaver *FileSaver) error {
 
 	destFile := s3Writer.Config.AwsS3OutputKey
 
-	for key, value := range values_for_s3_object_key {
+	for key, value := range valuesForKey {
 		expr := "%{" + key + "}"
 		destFile = strings.Replace(destFile, expr, value, -1)
 	}
@@ -135,22 +130,47 @@ func (s3Writer *S3Writer) uploadToS3(fileSaver *FileSaver) error {
 		ContentEncoding: aws.String("gzip"),
 	})
 
-	log.Printf("%d events written to S3 %s", fileSaver.Count, result.Location)
+	log.Printf("%d events written to S3 %s", fileInfo.Count, result.Location)
 
 	if s3Error == nil {
-		os.Remove(filename)
+		os.Remove(fileInfo.Filename)
 	} else {
 		log.Printf("Error uploading to S3", s3Error)
 	}
 
 	return s3Error
+
+}
+
+func (s3Writer *S3Writer) WaitForUpload() {
+	for {
+		select {
+		case fileInfo := <-s3Writer.uploadChannel:
+			s3Writer.doUpload(fileInfo)
+		}
+	}
+}
+
+func (s3Writer *S3Writer) InitiateUploadToS3(fileSaver *FileSaver) {
+	if fileSaver.Writer == nil {
+		return
+	}
+
+	log.Printf("Upload to S3, current event rate: %d/s\n", fileSaver.RateCounter.Rate())
+	writer := fileSaver.Writer
+	fileInfo := fileSaver.FileInfo
+	fileSaver.Writer = nil
+	writer.Close()
+
+	s3Writer.uploadChannel <- fileInfo
 }
 
 type S3Writer struct {
-	Config     Config
-	Sender     buffer.Sender
-	S3Uploader *s3manager.Uploader
-	term       chan bool
+	Config        Config
+	Sender        buffer.Sender
+	S3Uploader    *s3manager.Uploader
+	uploadChannel chan OutputFileInfo
+	term          chan bool
 }
 
 func init() {
@@ -165,6 +185,7 @@ func (s3Writer *S3Writer) Init(config json.RawMessage, sender buffer.Sender) err
 		return fmt.Errorf("Error parsing S3 config: %v", err)
 	}
 
+	s3Writer.uploadChannel = make(chan OutputFileInfo, maxSimultaneousUploads)
 	s3Writer.Config = *s3Config
 	s3Writer.Sender = sender
 
@@ -205,12 +226,14 @@ func (s3Writer *S3Writer) Start() error {
 	// Loop events and publish to S3
 	tick := time.NewTicker(time.Duration(s3FlushInterval) * time.Second)
 
+	go s3Writer.WaitForUpload()
+
 	for {
 		select {
 		case ev := <-receiveChan:
-			fileSaver.writeToFile(ev)
+			fileSaver.WriteToFile(ev)
 		case <-tick.C:
-			go s3Writer.uploadToS3(fileSaver)
+			s3Writer.InitiateUploadToS3(fileSaver)
 		case <-s3Writer.term:
 			log.Println("S3Writer received term signal")
 			return nil

@@ -158,13 +158,15 @@ func (es *ESServer) Start() error {
 	for {
 		readInputChannel(idx, receiveChan)
 
-		select {
-		case <-tick.C:
-			idx.flush()
-		case <-es.term:
-			tick.Stop()
-			log.Println("Elasticsearch received term signal")
-			break
+		if len(tick.C) > 0 || len(es.term) >0 {
+			select {
+			case <-tick.C:
+				idx.flush()
+			case <-es.term:
+				tick.Stop()
+				log.Println("Elasticsearch received term signal")
+				break
+			}
 		}
 	}
 

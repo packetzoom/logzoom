@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/packetzoom/logslammer/buffer"
@@ -33,6 +34,7 @@ type Config struct {
 	Hosts       []string `json:"hosts"`
 	IndexPrefix string   `json:"index"`
 	IndexType   string   `json:"indexType"`
+	Timeout     int      `json:"timeout"`
 }
 
 type ESServer struct {
@@ -128,7 +130,18 @@ func (es *ESServer) Start() error {
 	var err error
 
 	for {
-		client, err = elastic.NewClient(elastic.SetURL(es.hosts...))
+		httpClient := http.DefaultClient
+		timeout := 60 * time.Second
+
+		if es.config.Timeout > 0 {
+			timeout = time.Duration(es.config.Timeout) * time.Second
+		}
+
+		log.Println("Setting HTTP timeout to", timeout)
+		httpClient.Timeout = timeout
+		client, err = elastic.NewClient(elastic.SetURL(es.hosts...),
+			elastic.SetHttpClient(httpClient))
+
 		if err != nil {
 			log.Printf("Error starting Elasticsearch: %s, will retry", err)
 			time.Sleep(2 * time.Second)
@@ -158,7 +171,7 @@ func (es *ESServer) Start() error {
 	for {
 		readInputChannel(idx, receiveChan)
 
-		if len(tick.C) > 0 || len(es.term) >0 {
+		if len(tick.C) > 0 || len(es.term) > 0 {
 			select {
 			case <-tick.C:
 				idx.flush()

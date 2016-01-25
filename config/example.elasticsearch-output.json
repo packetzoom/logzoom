@@ -1,0 +1,19 @@
+{
+    "inputs": {
+        "redis": {
+            "db": 10,
+            "host": "localhost",
+            "keyName": "elasticsearch",
+            "port": 6379
+        }
+    },
+    "outputs": {
+        "elasticsearch": {
+            "hosts": [
+                "http://localhost:9200"
+            ],
+            "indexPrefix": "logstash",
+            "indexType": "logslammer"
+        }
+    }
+}

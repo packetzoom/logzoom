@@ -19,7 +19,7 @@ type Config struct {
 
 type LJServer struct {
 	Config *Config
-	r      parser.Receiver
+	r      input.Receiver
 	term   chan bool
 }
 
@@ -30,14 +30,14 @@ func init() {
 }
 
 // lumberConn handles an incoming connection from a lumberjack client
-func lumberConn(c net.Conn, r parser.Receiver) {
+func lumberConn(c net.Conn, r input.Receiver) {
 	defer c.Close()
 	log.Printf("[%s] accepting lumberjack connection", c.RemoteAddr().String())
 	parser.New(c, r).Parse()
 	log.Printf("[%s] closing lumberjack connection", c.RemoteAddr().String())
 }
 
-func (lj *LJServer) Init(config json.RawMessage, r parser.Receiver) error {
+func (lj *LJServer) Init(config json.RawMessage, r input.Receiver) error {
 	var ljConfig *Config
 	if err := json.Unmarshal(config, &ljConfig); err != nil {
 		return fmt.Errorf("Error parsing lumberjack config: %v", err)

@@ -6,7 +6,10 @@ import (
 	"os"
 
 	_ "github.com/packetzoom/logslammer/input/lumberjack"
+	_ "github.com/packetzoom/logslammer/input/redis"
 	_ "github.com/packetzoom/logslammer/output/elasticsearch"
+	_ "github.com/packetzoom/logslammer/output/redis"
+	_ "github.com/packetzoom/logslammer/output/s3"
 	_ "github.com/packetzoom/logslammer/output/tcp"
 	_ "github.com/packetzoom/logslammer/output/websocket"
 	"github.com/packetzoom/logslammer/server"

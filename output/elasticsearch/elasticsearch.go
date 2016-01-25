@@ -1,17 +1,16 @@
 package elasticsearch
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"strconv"
+	"net/http"
 	"time"
 
-	"github.com/hailocab/elastigo/api"
 	"github.com/packetzoom/logslammer/buffer"
 	"github.com/packetzoom/logslammer/output"
+	"github.com/paulbellamy/ratecounter"
+	"gopkg.in/olivere/elastic.v2"
 )
 
 const (
@@ -24,19 +23,26 @@ const (
 )
 
 type Indexer struct {
-	events int
-	buffer *bytes.Buffer
+	bulkService       *elastic.BulkService
+	indexPrefix       string
+	indexType         string
+	RateCounter       *ratecounter.RateCounter
+	lastDisplayUpdate time.Time
 }
 
 type Config struct {
-	Hosts []string `json:"hosts"`
+	Hosts       []string `json:"hosts"`
+	IndexPrefix string   `json:"index"`
+	IndexType   string   `json:"indexType"`
+	Timeout     int      `json:"timeout"`
 }
 
 type ESServer struct {
-	host  string
-	hosts []string
-	b     buffer.Sender
-	term  chan bool
+	config Config
+	host   string
+	hosts  []string
+	b      buffer.Sender
+	term   chan bool
 }
 
 func init() {
@@ -54,106 +60,43 @@ func indexName(idx string) string {
 	return fmt.Sprintf("%s-%s", idx, time.Now().Format("2006.01.02"))
 }
 
-func bulkSend(buf *bytes.Buffer) error {
-	_, err := api.DoCommand("POST", "/_bulk", buf)
-	if err != nil {
+func (i *Indexer) flush() error {
+	numEvents := i.bulkService.NumberOfActions()
+
+	if numEvents > 0 {
+		if time.Now().Sub(i.lastDisplayUpdate) >= time.Duration(1*time.Second) {
+			log.Printf("Flushing %d event(s) to Elasticsearch, current rate: %d/s", numEvents, i.RateCounter.Rate())
+			i.lastDisplayUpdate = time.Now()
+		}
+
+		_, err := i.bulkService.Do()
+
+		if err != nil {
+			log.Printf("Unable to flush events: %s", err)
+		}
+
 		return err
 	}
 
 	return nil
 }
 
-func indexDoc(ev *buffer.Event) *map[string]interface{} {
-	f := *ev.Fields
-	host := f["host"]
-	file := f["file"]
-	timestamp := f["timestamp"]
-	message := strconv.Quote(*ev.Text)
+func (i *Indexer) index(ev *buffer.Event) error {
+	doc := *ev.Text
+	idx := indexName(i.indexPrefix)
+	typ := i.indexType
 
-	delete(f, "timestamp")
-	delete(f, "line")
-	delete(f, "host")
-	delete(f, "file")
+	request := elastic.NewBulkIndexRequest().Index(idx).Type(typ).Doc(doc)
+	i.bulkService.Add(request)
+	i.RateCounter.Incr(1)
 
-	return &map[string]interface{}{
-		"@type":        f["type"],
-		"@message":     &message,
-		"@source_path": file,
-		"@source_host": host,
-		"@timestamp":   timestamp,
-		"@fields":      &f,
-		"@source":      ev.Source,
-	}
-}
+	numEvents := i.bulkService.NumberOfActions()
 
-func (i *Indexer) writeBulk(index string, _type string, data interface{}) error {
-	w := `{"index":{"_index":"%s","_type":"%s"}}`
-
-	i.buffer.WriteString(fmt.Sprintf(w, index, _type))
-	i.buffer.WriteByte('\n')
-
-	switch v := data.(type) {
-	case *bytes.Buffer:
-		io.Copy(i.buffer, v)
-	case []byte:
-		i.buffer.Write(v)
-	case string:
-		i.buffer.WriteString(v)
-	default:
-		body, err := json.Marshal(data)
-		if err != nil {
-			log.Printf("Error writing bulk data: %v", err)
-			return err
-		}
-		i.buffer.Write(body)
-	}
-	i.buffer.WriteByte('\n')
-	return nil
-}
-
-func (i *Indexer) flush() {
-	if i.events == 0 {
-		return
+	if numEvents < esSendBuffer {
+		return nil
 	}
 
-	log.Printf("Flushing %d event(s) to elasticsearch", i.events)
-	for j := 0; j < 3; j++ {
-		if err := bulkSend(i.buffer); err != nil {
-			log.Printf("Failed to index event (will retry): %v", err)
-			time.Sleep(time.Duration(50) * time.Millisecond)
-			continue
-		}
-		break
-	}
-
-	i.buffer.Reset()
-	i.events = 0
-}
-
-func (i *Indexer) index(ev *buffer.Event) {
-	doc := indexDoc(ev)
-	idx := indexName("")
-	typ := (*ev.Fields)["type"]
-
-	i.events++
-	i.writeBulk(idx, typ, doc)
-
-	if i.events < esSendBuffer {
-		return
-	}
-
-	log.Printf("Flushing %d event(s) to elasticsearch", i.events)
-	for j := 0; j < 3; j++ {
-		if err := bulkSend(i.buffer); err != nil {
-			log.Printf("Failed to index event (will retry): %v", err)
-			time.Sleep(time.Duration(50) * time.Millisecond)
-			continue
-		}
-		break
-	}
-
-	i.buffer.Reset()
-	i.events = 0
+	return i.flush()
 }
 
 func (e *ESServer) Init(config json.RawMessage, b buffer.Sender) error {
@@ -162,36 +105,81 @@ func (e *ESServer) Init(config json.RawMessage, b buffer.Sender) error {
 		return fmt.Errorf("Error parsing elasticsearch config: %v", err)
 	}
 
+	e.config = *esConfig
 	e.hosts = esConfig.Hosts
 	e.b = b
 
 	return nil
 }
 
+func readInputChannel(idx *Indexer, receiveChan chan *buffer.Event) {
+	// Drain the channel only if we have room
+	if idx.bulkService.NumberOfActions() < esSendBuffer {
+		select {
+		case ev := <-receiveChan:
+			idx.index(ev)
+		}
+	} else {
+		log.Printf("Internal Elasticsearch buffer is full, waiting")
+		time.Sleep(1 * time.Second)
+	}
+}
+
 func (es *ESServer) Start() error {
-	api.SetHosts(es.hosts)
+	var client *elastic.Client
+	var err error
+
+	for {
+		httpClient := http.DefaultClient
+		timeout := 60 * time.Second
+
+		if es.config.Timeout > 0 {
+			timeout = time.Duration(es.config.Timeout) * time.Second
+		}
+
+		log.Println("Setting HTTP timeout to", timeout)
+		httpClient.Timeout = timeout
+		client, err = elastic.NewClient(elastic.SetURL(es.hosts...),
+			elastic.SetHttpClient(httpClient))
+
+		if err != nil {
+			log.Printf("Error starting Elasticsearch: %s, will retry", err)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		break
+	}
+
+	log.Printf("Connected to Elasticsearch")
+
+	service := elastic.NewBulkService(client)
 
 	// Add the client as a subscriber
-	r := make(chan *buffer.Event, esRecvBuffer)
-	es.b.AddSubscriber(es.host, r)
+	receiveChan := make(chan *buffer.Event, esRecvBuffer)
+	es.b.AddSubscriber(es.host, receiveChan)
 	defer es.b.DelSubscriber(es.host)
 
+	rateCounter := ratecounter.NewRateCounter(1 * time.Second)
+
 	// Create indexer
-	idx := &Indexer{0, bytes.NewBuffer(nil)}
+	idx := &Indexer{service, es.config.IndexPrefix, es.config.IndexType, rateCounter, time.Now()}
 
 	// Loop events and publish to elasticsearch
 	tick := time.NewTicker(time.Duration(esFlushInterval) * time.Second)
 
 	for {
-		select {
-		case ev := <-r:
-			idx.index(ev)
-		case <-tick.C:
-			idx.flush()
-		case <-es.term:
-			tick.Stop()
-			log.Println("Elasticsearch received term signal")
-			break
+		readInputChannel(idx, receiveChan)
+
+		if len(tick.C) > 0 || len(es.term) > 0 {
+			select {
+			case <-tick.C:
+				idx.flush()
+			case <-es.term:
+				tick.Stop()
+				log.Println("Elasticsearch received term signal")
+				break
+			}
 		}
 	}
 

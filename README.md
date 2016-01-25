@@ -1,18 +1,27 @@
-# Logslam - A lumberjack => logstash indexer in Go
+# Logslammer- A Lumberjack => Logstash indexer in Go
 
-Logslam is a lightweight lumberjack compliant log indexer. It accepts the lumberjack v1 protocol and indexes logs in elasticsearch. It was written with the intention of being a small and efficient replacement for logstash on AWS EC2. It does not attempt to replicate all of logstash's features, the goal was to simply replace it for Hailo's specific use case in the ELK stack.
+Logslammer is a lightweight, Lumberjack-compliant log indexer based off the fine
+work of Hailo's [Logslam](https://github.com/hailocab/logslam). It accepts
+the Lumberjack v2 protocol, which is currently supported by [Elastic's Filebeat]
+(https://github.com/elastic/beats).
+
+It was written with the intention of being a smaller, efficient, and more reliable
+replacement for logstash and logslam.
 
 ## Supported IO
 
 ### Inputs
 
-- Lumberjack V1 Protocol
+- Lumberjack V2 Protocol
+- Redis Message Queue
 
 ### Outputs
 
+- Redis Message Queue
 - TCP Streaming
 - WebSocket Streaming
 - Elasticsearch
+- S3
 
 ## Getting Started
 

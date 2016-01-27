@@ -106,7 +106,7 @@ func (redisServer *RedisServer) Start() error {
 		case ev := <-receiveChan:
 			rateCounter.Incr(1)
 			for _, queue := range allQueues {
-				insertToRedis(queue, ev)
+				go insertToRedis(queue, ev)
 			}
 		case <-tick.C:
 			if rateCounter.Rate() > 0 {
@@ -114,7 +114,7 @@ func (redisServer *RedisServer) Start() error {
 			}
 
 			for _, queue := range allQueues {
-				flushQueue(queue)
+				go flushQueue(queue)
 			}
 		case <-redisServer.term:
 			log.Println("RedisServer received term signal")

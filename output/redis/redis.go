@@ -50,8 +50,7 @@ func (redisServer *RedisServer) Init(config json.RawMessage, sender buffer.Sende
 	return nil
 }
 
-func insertToRedis(queue *redismq.BufferedQueue, ev *buffer.Event) error {
-	text := *ev.Text
+func insertToRedis(queue *redismq.BufferedQueue, text string) error {
 	err := queue.Put(text)
 
 	if err != nil {
@@ -106,7 +105,8 @@ func (redisServer *RedisServer) Start() error {
 		case ev := <-receiveChan:
 			rateCounter.Incr(1)
 			for _, queue := range allQueues {
-				go insertToRedis(queue, ev)
+				text := *ev.Text
+				go insertToRedis(queue, text)
 			}
 		case <-tick.C:
 			if rateCounter.Rate() > 0 {

@@ -33,6 +33,68 @@ type RedisServer struct {
 	term   chan bool
 }
 
+type RedisQueue struct {
+	queue  *redismq.BufferedQueue
+	data   chan string
+	term   chan bool
+	ticker time.Ticker
+}
+
+func NewRedisQueue(config Config, key string) *RedisQueue {
+	port := strconv.Itoa(config.Port)
+
+	queue := redismq.CreateBufferedQueue(config.Host,
+		port,
+		config.Password,
+		config.Db,
+		key,
+		recvBuffer)
+	queue.Start()
+
+	return &RedisQueue{queue: queue,
+		data:   make(chan string),
+		term:   make(chan bool),
+		ticker: *time.NewTicker(time.Duration(redisFlushInterval) * time.Second)}
+}
+
+func (redisQueue *RedisQueue) insertToRedis(text string) error {
+	err := redisQueue.queue.Put(text)
+
+	if err != nil {
+		fmt.Println("Error inserting data: ", err)
+		return err
+	}
+
+	if len(redisQueue.queue.Buffer) > recvBuffer {
+		return redisQueue.flushQueue()
+	}
+
+	return nil
+}
+
+func (redisQueue *RedisQueue) flushQueue() error {
+	if len(redisQueue.queue.Buffer) > 0 {
+		//	log.Printf("Flushing %d events to Redis", len(redisQueue.queue.Buffer))
+	}
+
+	redisQueue.queue.FlushBuffer()
+	return nil
+}
+
+func (redisQueue *RedisQueue) Start() {
+	for {
+		select {
+		case text := <-redisQueue.data:
+			redisQueue.insertToRedis(text)
+		case <-redisQueue.ticker.C:
+			redisQueue.flushQueue()
+		case <-redisQueue.term:
+			redisQueue.flushQueue()
+		}
+	}
+
+}
+
 func init() {
 	output.Register("redis", &RedisServer{
 		term: make(chan bool, 1),
@@ -50,50 +112,19 @@ func (redisServer *RedisServer) Init(config json.RawMessage, sender buffer.Sende
 	return nil
 }
 
-func insertToRedis(queue *redismq.BufferedQueue, text string) error {
-	err := queue.Put(text)
-
-	if err != nil {
-		fmt.Println("Error inserting data: ", err)
-		return err
-	}
-
-	if len(queue.Buffer) > recvBuffer {
-		return flushQueue(queue)
-	}
-
-	return nil
-}
-
-func flushQueue(queue *redismq.BufferedQueue) error {
-	if len(queue.Buffer) > 0 {
-		//	log.Printf("Flushing %d events to Redis", len(queue.Buffer))
-	}
-
-	queue.FlushBuffer()
-	return nil
-}
-
 func (redisServer *RedisServer) Start() error {
 	// Add the client as a subscriber
 	receiveChan := make(chan *buffer.Event, recvBuffer)
 	redisServer.sender.AddSubscriber(redisServer.config.Host, receiveChan)
 	defer redisServer.sender.DelSubscriber(redisServer.config.Host)
 
-	port := strconv.Itoa(redisServer.config.Port)
-
-	allQueues := make([]*redismq.BufferedQueue, len(redisServer.config.Keys))
+	allQueues := make([]*RedisQueue, len(redisServer.config.Keys))
 
 	// Create Redis queue
 	for index, key := range redisServer.config.Keys {
-		queue := redismq.CreateBufferedQueue(redisServer.config.Host,
-			port,
-			redisServer.config.Password,
-			redisServer.config.Db,
-			key,
-			recvBuffer)
-		queue.Start()
-		allQueues[index] = queue
+		redisQueue := NewRedisQueue(redisServer.config, key)
+		allQueues[index] = redisQueue
+		go redisQueue.Start()
 	}
 
 	// Loop events and publish to Redis
@@ -104,20 +135,20 @@ func (redisServer *RedisServer) Start() error {
 		select {
 		case ev := <-receiveChan:
 			rateCounter.Incr(1)
+			text := *ev.Text
 			for _, queue := range allQueues {
-				text := *ev.Text
-				go insertToRedis(queue, text)
+				queue.data <- text
 			}
 		case <-tick.C:
 			if rateCounter.Rate() > 0 {
 				log.Printf("Current Redis input rate: %d/s\n", rateCounter.Rate())
 			}
-
-			for _, queue := range allQueues {
-				go flushQueue(queue)
-			}
 		case <-redisServer.term:
 			log.Println("RedisServer received term signal")
+			for _, queue := range allQueues {
+				queue.term <- true
+			}
+
 			return nil
 		}
 	}

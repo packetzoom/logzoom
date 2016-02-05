@@ -36,6 +36,7 @@ type Config struct {
 	IndexPrefix string   `json:"index"`
 	IndexType   string   `json:"indexType"`
 	Timeout     int      `json:"timeout"`
+	GzipEnabled bool     `json:"gzipEnabled"`
 }
 
 type ESServer struct {
@@ -139,10 +140,12 @@ func (es *ESServer) Start() error {
 		}
 
 		log.Println("Setting HTTP timeout to", timeout)
+		log.Println("Setting GZIP enabled:", es.config.GzipEnabled)
+
 		httpClient.Timeout = timeout
 		client, err = elastic.NewClient(elastic.SetURL(es.hosts...),
 			elastic.SetHttpClient(httpClient),
-			elastic.SetGzip(true),
+			elastic.SetGzip(es.config.GzipEnabled),
 			elastic.SetInfoLog(log.New(os.Stdout, "", log.LstdFlags)),
 			elastic.SetErrorLog(log.New(os.Stderr, "", log.LstdFlags)))
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/packetzoom/logslammer/buffer"
@@ -140,7 +141,10 @@ func (es *ESServer) Start() error {
 		log.Println("Setting HTTP timeout to", timeout)
 		httpClient.Timeout = timeout
 		client, err = elastic.NewClient(elastic.SetURL(es.hosts...),
-			elastic.SetHttpClient(httpClient))
+			elastic.SetHttpClient(httpClient),
+			elastic.SetGzip(true),
+			elastic.SetInfoLog(log.New(os.Stdout, "", log.LstdFlags)),
+			elastic.SetErrorLog(log.New(os.Stderr, "", log.LstdFlags)))
 
 		if err != nil {
 			log.Printf("Error starting Elasticsearch: %s, will retry", err)

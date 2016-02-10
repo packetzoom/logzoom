@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -21,11 +22,11 @@ const (
 )
 
 type Config struct {
-	Host     string   `yaml:"host"`
-	Port     int      `yaml:"port"`
-	Db       int64    `yaml:"db"`
-	Password string   `yaml:"password"`
-	Keys     []string `yaml:"keys"`
+	Host       string   `yaml:"host"`
+	Port       int      `yaml:"port"`
+	Db         int64    `yaml:"db"`
+	Password   string   `yaml:"password"`
+	CopyQueues []string `yaml:"copy_queues"`
 }
 
 type RedisServer struct {
@@ -102,6 +103,22 @@ func init() {
 	})
 }
 
+func (redisServer *RedisServer) ValidateConfig(config *Config) error {
+	if len(config.Host) == 0 {
+		return errors.New("Missing Redis host")
+	}
+
+	if config.Port <= 0 {
+		return errors.New("Missing Redis port")
+	}
+
+	if len(config.CopyQueues) == 0 {
+		return errors.New("Missing Redis output queues")
+	}
+
+	return nil
+}
+
 func (redisServer *RedisServer) Init(config yaml.MapSlice, sender buffer.Sender) error {
 	var redisConfig *Config
 
@@ -111,6 +128,10 @@ func (redisServer *RedisServer) Init(config yaml.MapSlice, sender buffer.Sender)
 
 	if err := yaml.Unmarshal(yamlConfig, &redisConfig); err != nil {
 		return fmt.Errorf("Error parsing Redis config: %v", err)
+	}
+
+	if err := redisServer.ValidateConfig(redisConfig); err != nil {
+		return fmt.Errorf("Error in config: %v", err)
 	}
 
 	redisServer.config = *redisConfig
@@ -124,10 +145,10 @@ func (redisServer *RedisServer) Start() error {
 	redisServer.sender.AddSubscriber(redisServer.config.Host, receiveChan)
 	defer redisServer.sender.DelSubscriber(redisServer.config.Host)
 
-	allQueues := make([]*RedisQueue, len(redisServer.config.Keys))
+	allQueues := make([]*RedisQueue, len(redisServer.config.CopyQueues))
 
 	// Create Redis queue
-	for index, key := range redisServer.config.Keys {
+	for index, key := range redisServer.config.CopyQueues {
 		redisQueue := NewRedisQueue(redisServer.config, key)
 		allQueues[index] = redisQueue
 		go redisQueue.Start()

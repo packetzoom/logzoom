@@ -8,5 +8,5 @@ outputs:
   redis:
       db: 10
       host: localhost
-      keys: ["elasticsearch", "s3"]
+      copy_queues: ["elasticsearch", "s3"]
       port: 6379

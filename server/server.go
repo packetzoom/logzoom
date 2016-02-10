@@ -65,7 +65,7 @@ func (s *Server) Start() {
 		go func(name string, in input.Input) {
 			log.Printf("Starting input %s", name)
 			if err := in.Start(); err != nil {
-				log.Printf("Error starting input %s: %v", name, err)
+				log.Fatalf("Error starting input %s: %v", name, err)
 			}
 		}(name, in)
 
@@ -81,14 +81,14 @@ func (s *Server) Start() {
 		}
 
 		if err := out.Init(config, s.Buffer); err != nil {
-			log.Printf("Failed to init %s output: %v", name, err)
+			log.Fatalf("Failed to init %s output: %v", name, err)
 			continue
 		}
 
 		go func(name string, out output.Output) {
 			log.Printf("Starting output %s", name)
 			if err := out.Start(); err != nil {
-				log.Printf("Error starting output %s: %v", name, err)
+				log.Fatalf("Error starting output %s: %v", name, err)
 			}
 		}(name, out)
 

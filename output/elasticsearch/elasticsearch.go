@@ -33,11 +33,13 @@ type Indexer struct {
 }
 
 type Config struct {
-	Hosts       []string `yaml:"hosts"`
-	IndexPrefix string   `yaml:"index"`
-	IndexType   string   `yaml:"index_type"`
-	Timeout     int      `yaml:"timeout"`
-	GzipEnabled bool     `yaml:"gzip_enabled"`
+	Hosts           []string `yaml:"hosts"`
+	IndexPrefix     string   `yaml:"index"`
+	IndexType       string   `yaml:"index_type"`
+	Timeout         int      `yaml:"timeout"`
+	GzipEnabled     bool     `yaml:"gzip_enabled"`
+	InfoLogEnabled  bool     `yaml:"info_log_enabled"`
+	ErrorLogEnabled bool     `yaml:"error_log_enabled"`
 }
 
 type ESServer struct {
@@ -165,11 +167,22 @@ func (es *ESServer) Start() error {
 		log.Println("Setting GZIP enabled:", es.config.GzipEnabled)
 
 		httpClient.Timeout = timeout
+
+		var infoLogger, errorLogger *log.Logger
+
+		if es.config.InfoLogEnabled {
+			infoLogger = log.New(os.Stdout, "", log.LstdFlags)
+		}
+
+		if es.config.ErrorLogEnabled {
+			errorLogger = log.New(os.Stderr, "", log.LstdFlags)
+		}
+
 		client, err = elastic.NewClient(elastic.SetURL(es.hosts...),
 			elastic.SetHttpClient(httpClient),
 			elastic.SetGzip(es.config.GzipEnabled),
-			elastic.SetInfoLog(log.New(os.Stdout, "", log.LstdFlags)),
-			elastic.SetErrorLog(log.New(os.Stderr, "", log.LstdFlags)))
+			elastic.SetInfoLog(infoLogger),
+			elastic.SetErrorLog(errorLogger))
 
 		if err != nil {
 			log.Printf("Error starting Elasticsearch: %s, will retry", err)

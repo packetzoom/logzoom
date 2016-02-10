@@ -12,3 +12,5 @@ outputs:
     index: "logstash"
     index_type: "logslammer"
     gzip_enabled: false
+    info_log_enabled: true
+    error_log_enabled: true

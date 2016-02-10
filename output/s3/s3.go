@@ -3,6 +3,7 @@ package s3
 import (
 	"compress/gzip"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -180,6 +181,26 @@ func init() {
 	})
 }
 
+func (s3Writer *S3Writer) ValidateConfig(config *Config) error {
+	if len(config.LocalPath) == 0 {
+		return errors.New("Missing local path")
+	}
+
+	if len(config.AwsS3Bucket) == 0 {
+		return errors.New("Missing AWS S3 bucket")
+	}
+
+	if len(config.AwsS3Region) == 0 {
+		return errors.New("Missing AWS S3 region")
+	}
+
+	if len(config.AwsS3OutputKey) == 0 {
+		return errors.New("Missing AWS S3 output key")
+	}
+
+	return nil
+}
+
 func (s3Writer *S3Writer) Init(config yaml.MapSlice, sender buffer.Sender) error {
 	var s3Config *Config
 
@@ -189,6 +210,10 @@ func (s3Writer *S3Writer) Init(config yaml.MapSlice, sender buffer.Sender) error
 
 	if err := yaml.Unmarshal(yamlConfig, &s3Config); err != nil {
 		return fmt.Errorf("Error parsing S3 config: %v", err)
+	}
+
+	if err := s3Writer.ValidateConfig(s3Config); err != nil {
+		return fmt.Errorf("Error in config: %v", err)
 	}
 
 	s3Writer.uploadChannel = make(chan OutputFileInfo, maxSimultaneousUploads)
@@ -203,7 +228,7 @@ func (s3Writer *S3Writer) Init(config yaml.MapSlice, sender buffer.Sender) error
 	_, err := creds.Get()
 
 	if err != nil {
-		log.Fatalf("Error with AWS credentials:", err)
+		return err
 	}
 
 	session := session.New(&aws.Config{
@@ -212,7 +237,7 @@ func (s3Writer *S3Writer) Init(config yaml.MapSlice, sender buffer.Sender) error
 	})
 
 	s3Writer.S3Uploader = s3manager.NewUploader(session)
-	log.Println("Done instantiating uploader")
+	log.Println("Done instantiating S3 uploader")
 
 	return nil
 }

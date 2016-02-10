@@ -59,8 +59,7 @@ func (s *Server) Start() {
 		}
 
 		if err := in.Init(config, s.Buffer); err != nil {
-			log.Printf("Failed to init %s input: %v", name, err)
-			continue
+			log.Fatalf("Failed to init %s input: %v", name, err)
 		}
 
 		go func(name string, in input.Input) {

@@ -1,7 +1,6 @@
 package websocket
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,9 +8,11 @@ import (
 	"text/template"
 	"time"
 
-	"code.google.com/p/go.net/websocket"
 	"github.com/packetzoom/logslammer/buffer"
 	"github.com/packetzoom/logslammer/output"
+	"golang.org/x/net/websocket"
+
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 )
 
 type Config struct {
-	Host string `json:"host"`
+	Host string `yaml:"host"`
 }
 
 type WebSocketServer struct {
@@ -123,9 +124,14 @@ func (ws *WebSocketServer) logListMaintainer() {
 	}
 }
 
-func (ws *WebSocketServer) Init(config json.RawMessage, b buffer.Sender) error {
+func (ws *WebSocketServer) Init(config yaml.MapSlice, b buffer.Sender) error {
 	var wsConfig *Config
-	if err := json.Unmarshal(config, &wsConfig); err != nil {
+
+	// go-yaml doesn't have a great way to partially unmarshal YAML data
+	// See https://github.com/go-yaml/yaml/issues/13
+	yamlConfig, _ := yaml.Marshal(config)
+
+	if err := yaml.Unmarshal(yamlConfig, &wsConfig); err != nil {
 		return fmt.Errorf("Error parsing websocket config: %v", err)
 	}
 

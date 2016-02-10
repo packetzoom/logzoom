@@ -3,7 +3,6 @@ package s3
 import (
 	"compress/gzip"
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -21,6 +20,8 @@ import (
 
 	"github.com/jehiah/go-strftime"
 	"github.com/paulbellamy/ratecounter"
+
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -38,15 +39,15 @@ func uuid() string {
 }
 
 type Config struct {
-	AwsKeyId    string `json:"awsKeyId"`
-	AwsSecKey   string `json:"awsSecKey"`
-	AwsS3Bucket string `json:"awsS3Bucket"`
-	AwsS3Region string `json:"awsS3Region"`
+	AwsKeyId    string `yaml:"aws_key_id"`
+	AwsSecKey   string `yaml:"aws_sec_key"`
+	AwsS3Bucket string `yaml:"aws_s3_bucket"`
+	AwsS3Region string `yaml:"aws_s3_region"`
 
-	LocalPath       string `json:"localPath"`
-	Path            string `json:"path"`
-	TimeSliceFormat string `json:"timeSliceFormat"`
-	AwsS3OutputKey  string `json:"awsS3OutputKey"`
+	LocalPath       string `yaml:"local_path"`
+	Path            string `yaml:"s3_path"`
+	TimeSliceFormat string `yaml:"time_slice_format"`
+	AwsS3OutputKey  string `yaml:"aws_s3_output_key"`
 }
 
 type OutputFileInfo struct {
@@ -179,9 +180,14 @@ func init() {
 	})
 }
 
-func (s3Writer *S3Writer) Init(config json.RawMessage, sender buffer.Sender) error {
+func (s3Writer *S3Writer) Init(config yaml.MapSlice, sender buffer.Sender) error {
 	var s3Config *Config
-	if err := json.Unmarshal(config, &s3Config); err != nil {
+
+	// go-yaml doesn't have a great way to partially unmarshal YAML data
+	// See https://github.com/go-yaml/yaml/issues/13
+	yamlConfig, _ := yaml.Marshal(config)
+
+	if err := yaml.Unmarshal(yamlConfig, &s3Config); err != nil {
 		return fmt.Errorf("Error parsing S3 config: %v", err)
 	}
 

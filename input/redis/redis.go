@@ -12,6 +12,7 @@ import (
 	"github.com/packetzoom/logslammer/buffer"
 	"github.com/packetzoom/logslammer/input"
 	"github.com/paulbellamy/ratecounter"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -19,12 +20,12 @@ const (
 )
 
 type Config struct {
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	Db         int64  `json:"db"`
-	Password   string `json:"password"`
-	KeyName    string `json:"keyName"`
-	JsonDecode bool   `json:"decode"`
+	Host       string `yaml:"host"`
+	Port       int    `yaml:"port"`
+	Db         int64  `yaml:"db"`
+	Password   string `yaml:"password"`
+	QueueName  string `yaml:"queue_name"`
+	JsonDecode bool   `yaml:"json_decode"`
 }
 
 type RedisInputServer struct {
@@ -92,9 +93,14 @@ func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 	return nil
 }
 
-func (redisServer *RedisInputServer) Init(config json.RawMessage, receiver input.Receiver) error {
+func (redisServer *RedisInputServer) Init(config yaml.MapSlice, receiver input.Receiver) error {
 	var redisConfig *Config
-	if err := json.Unmarshal(config, &redisConfig); err != nil {
+
+	// go-yaml doesn't have a great way to partially unmarshal YAML data
+	// See https://github.com/go-yaml/yaml/issues/13
+	yamlConfig, _ := yaml.Marshal(config)
+
+	if err := yaml.Unmarshal(yamlConfig, &redisConfig); err != nil {
 		return fmt.Errorf("Error parsing Redis config: %v", err)
 	}
 
@@ -113,7 +119,7 @@ func (redisServer *RedisInputServer) Start() error {
 		port,
 		redisServer.config.Password,
 		redisServer.config.Db,
-		redisServer.config.KeyName)
+		redisServer.config.QueueName)
 
 	consumer, err := queue.AddConsumer("redisInput")
 

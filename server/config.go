@@ -1,14 +1,14 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
+	"gopkg.in/yaml.v2"
 	"io/ioutil"
 )
 
 type Config struct {
-	Inputs  map[string]json.RawMessage `json:"inputs"`
-	Outputs map[string]json.RawMessage `json:"outputs"`
+	Inputs  map[string]yaml.MapSlice `yaml:"inputs"`
+	Outputs map[string]yaml.MapSlice `yaml:"outputs"`
 }
 
 func LoadConfig(file string) (*Config, error) {
@@ -18,7 +18,7 @@ func LoadConfig(file string) (*Config, error) {
 	}
 
 	var conf *Config
-	err = json.Unmarshal(b, &conf)
+	err = yaml.Unmarshal(b, &conf)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse config %s: %v", file, err)
 	}

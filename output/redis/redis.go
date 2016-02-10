@@ -1,7 +1,6 @@
 package redis
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"strconv"
@@ -11,6 +10,8 @@ import (
 	"github.com/packetzoom/logslammer/buffer"
 	"github.com/packetzoom/logslammer/output"
 	"github.com/paulbellamy/ratecounter"
+
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -20,11 +21,11 @@ const (
 )
 
 type Config struct {
-	Host     string   `json:"host"`
-	Port     int      `json:"port"`
-	Db       int64    `json:"db"`
-	Password string   `json:"password"`
-	Keys     []string `json:"keys"`
+	Host     string   `yaml:"host"`
+	Port     int      `yaml:"port"`
+	Db       int64    `yaml:"db"`
+	Password string   `yaml:"password"`
+	Keys     []string `yaml:"keys"`
 }
 
 type RedisServer struct {
@@ -101,9 +102,14 @@ func init() {
 	})
 }
 
-func (redisServer *RedisServer) Init(config json.RawMessage, sender buffer.Sender) error {
+func (redisServer *RedisServer) Init(config yaml.MapSlice, sender buffer.Sender) error {
 	var redisConfig *Config
-	if err := json.Unmarshal(config, &redisConfig); err != nil {
+
+	// go-yaml doesn't have a great way to partially unmarshal YAML data
+	// See https://github.com/go-yaml/yaml/issues/13
+	yamlConfig, _ := yaml.Marshal(config)
+
+	if err := yaml.Unmarshal(yamlConfig, &redisConfig); err != nil {
 		return fmt.Errorf("Error parsing Redis config: %v", err)
 	}
 

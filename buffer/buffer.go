@@ -87,7 +87,7 @@ func (b *Buffer) Start() {
 		case <-b.term:
 			log.Println("Received on term chan")
 			break
-        case <-b.ticker.C:
+		case <-b.ticker.C:
 		}
 	}
 }

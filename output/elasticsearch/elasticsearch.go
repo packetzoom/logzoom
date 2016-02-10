@@ -1,7 +1,6 @@
 package elasticsearch
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"github.com/packetzoom/logslammer/output"
 	"github.com/paulbellamy/ratecounter"
 	"gopkg.in/olivere/elastic.v2"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -32,11 +32,11 @@ type Indexer struct {
 }
 
 type Config struct {
-	Hosts       []string `json:"hosts"`
-	IndexPrefix string   `json:"index"`
-	IndexType   string   `json:"indexType"`
-	Timeout     int      `json:"timeout"`
-	GzipEnabled bool     `json:"gzipEnabled"`
+	Hosts       []string `yaml:"hosts"`
+	IndexPrefix string   `yaml:"index"`
+	IndexType   string   `yaml:"index_type"`
+	Timeout     int      `yaml:"timeout"`
+	GzipEnabled bool     `yaml:"gzip_enabled"`
 }
 
 type ESServer struct {
@@ -101,9 +101,14 @@ func (i *Indexer) index(ev *buffer.Event) error {
 	return i.flush()
 }
 
-func (e *ESServer) Init(config json.RawMessage, b buffer.Sender) error {
+func (e *ESServer) Init(config yaml.MapSlice, b buffer.Sender) error {
 	var esConfig *Config
-	if err := json.Unmarshal(config, &esConfig); err != nil {
+
+	// go-yaml doesn't have a great way to partially unmarshal YAML data
+	// See https://github.com/go-yaml/yaml/issues/13
+	yamlConfig, _ := yaml.Marshal(config)
+
+	if err := yaml.Unmarshal(yamlConfig, &esConfig); err != nil {
 		return fmt.Errorf("Error parsing elasticsearch config: %v", err)
 	}
 

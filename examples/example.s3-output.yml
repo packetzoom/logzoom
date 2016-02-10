@@ -1,0 +1,17 @@
+---
+inputs:
+  redis:
+    db: 10
+    host: "localhost"
+    keyName: "s3"
+    port: 6379
+outputs:
+  s3:
+    aws_key_id: "<YOUR KEY HERE>"
+    aws_sec_key: "<YOUR SECRET HERE>"
+    aws_s3_bucket: "pz-test-files"
+    aws_s3_region: "us-west-1"
+    local_path: "/tmp"
+    s3_path: "active"
+    time_slice_format: "%Y-%m-%d/%H%M"
+    aws_s3_output_key: "%{path}/%{timeSlice}/%{hostname}_%{uuid}.gz"

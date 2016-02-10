@@ -27,39 +27,30 @@ replacement for logstash and logslam.
 
 ### 1. Create config
 
-Create a config file specifying location of ssl crt/key, bind addresses for inputs/outputs and elasticsearch hosts.
+Create a YAML config file specifying the desired input and outputs. An example
+config can be found in examples/example.config.yml:
 
-An example config can be found in example.config.json:
-```
-{
-	"inputs": {
-		"lumberjack": {
-			"host": ":7200",
-			"ssl_key": "lumberjack.key",
-			"ssl_crt": "lumberjack.crt"
-		}
-	},
-	"outputs": {
-		"tcp": {
-			"host": ":7201"
-		},
-		"websocket": {
-			"host": ":7202"
-		},
-		"elasticsearch": {
-			"hosts": [
-				"localhost:9200"
-			]
-		}
-	}
-}
-```
+```yaml
+inputs:
+ lumberjack:
+  host: :7200
+  ssl_key: lumberjack.key
+  ssl_crt: lumberjack.crt
+outputs:
+ tcp:
+  host: :7201
+ websocket:
+  host: :7202
+ elasticsearch:
+  hosts:
+   - localhost:9200
+``````
 
 ### 2. Run the server
 
 ```
 $ go get
-$ $GOPATH/bin/logslam -config=example.config.json
+$ $GOPATH/bin/logslammer -config=examples/example.config.yml
 2015/01/20 20:59:03 Starting server
 2015/01/20 20:59:03 Starting buffer
 2015/01/20 20:59:03 Starting input lumberjack

@@ -2,6 +2,7 @@ package redis
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -93,6 +94,22 @@ func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 	return nil
 }
 
+func (redisServer *RedisInputServer) ValidateConfig(config *Config) error {
+	if len(config.Host) == 0 {
+		return errors.New("Missing Redis host")
+	}
+
+	if config.Port <= 0 {
+		return errors.New("Missing Redis port")
+	}
+
+	if len(config.QueueName) == 0 {
+		return errors.New("Missing Redis queue name")
+	}
+
+	return nil
+}
+
 func (redisServer *RedisInputServer) Init(config yaml.MapSlice, receiver input.Receiver) error {
 	var redisConfig *Config
 
@@ -102,6 +119,10 @@ func (redisServer *RedisInputServer) Init(config yaml.MapSlice, receiver input.R
 
 	if err := yaml.Unmarshal(yamlConfig, &redisConfig); err != nil {
 		return fmt.Errorf("Error parsing Redis config: %v", err)
+	}
+
+	if err := redisServer.ValidateConfig(redisConfig); err != nil {
+		return fmt.Errorf("Error in config: %v", err)
 	}
 
 	redisServer.config = *redisConfig

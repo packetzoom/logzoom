@@ -111,7 +111,7 @@ func (redisServer *RedisInputServer) Init(config yaml.MapSlice, receiver input.R
 }
 
 func (redisServer *RedisInputServer) Start() error {
-	log.Println("Starting Redis input")
+	log.Println("Starting Redis input on queue", redisServer.config.QueueName)
 	port := strconv.Itoa(redisServer.config.Port)
 
 	// Create Redis queue

@@ -1,6 +1,7 @@
 package elasticsearch
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -99,6 +100,22 @@ func (i *Indexer) index(ev *buffer.Event) error {
 	}
 
 	return i.flush()
+}
+
+func (e *ESServer) ValidateConfig(config *Config) error {
+	if len(config.Hosts) == 0 {
+		return errors.New("Missing hosts")
+	}
+
+	if len(config.IndexPrefix) == 0 {
+		return errors.New("Missing index prefix (e.g. logstash)")
+	}
+
+	if len(config.IndexType) == 0 {
+		return errors.New("Missing index type (e.g. logstash)")
+	}
+
+	return nil
 }
 
 func (e *ESServer) Init(config yaml.MapSlice, b buffer.Sender) error {

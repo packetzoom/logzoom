@@ -1,0 +1,13 @@
+inputs:
+ lumberjack:
+  host: :7200
+  ssl_key: lumberjack.key
+  ssl_crt: lumberjack.crt
+outputs:
+ tcp:
+  host: :7201
+ websocket:
+  host: :7202
+ elasticsearch:
+  hosts:
+   - localhost:9200

@@ -1,13 +1,13 @@
 package tcp
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 
 	"github.com/packetzoom/logslammer/buffer"
 	"github.com/packetzoom/logslammer/output"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -15,7 +15,7 @@ const (
 )
 
 type Config struct {
-	Host string `json:"host"`
+	Host string `yaml:"host"`
 }
 
 type TCPServer struct {
@@ -57,9 +57,14 @@ func (s *TCPServer) accept(c net.Conn) {
 
 }
 
-func (s *TCPServer) Init(config json.RawMessage, b buffer.Sender) error {
+func (s *TCPServer) Init(config yaml.MapSlice, b buffer.Sender) error {
 	var tcpConfig *Config
-	if err := json.Unmarshal(config, &tcpConfig); err != nil {
+
+	// go-yaml doesn't have a great way to partially unmarshal YAML data
+	// See https://github.com/go-yaml/yaml/issues/13
+	yamlConfig, _ := yaml.Marshal(config)
+
+	if err := yaml.Unmarshal(yamlConfig, &tcpConfig); err != nil {
 		return fmt.Errorf("Error parsing tcp config: %v", err)
 	}
 

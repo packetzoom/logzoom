@@ -1,7 +1,7 @@
 package redis
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -11,6 +11,8 @@ import (
 	"github.com/packetzoom/logslammer/buffer"
 	"github.com/packetzoom/logslammer/output"
 	"github.com/paulbellamy/ratecounter"
+
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -20,11 +22,11 @@ const (
 )
 
 type Config struct {
-	Host     string   `json:"host"`
-	Port     int      `json:"port"`
-	Db       int64    `json:"db"`
-	Password string   `json:"password"`
-	Keys     []string `json:"keys"`
+	Host       string   `yaml:"host"`
+	Port       int      `yaml:"port"`
+	Db         int64    `yaml:"db"`
+	Password   string   `yaml:"password"`
+	CopyQueues []string `yaml:"copy_queues"`
 }
 
 type RedisServer struct {
@@ -101,10 +103,35 @@ func init() {
 	})
 }
 
-func (redisServer *RedisServer) Init(config json.RawMessage, sender buffer.Sender) error {
+func (redisServer *RedisServer) ValidateConfig(config *Config) error {
+	if len(config.Host) == 0 {
+		return errors.New("Missing Redis host")
+	}
+
+	if config.Port <= 0 {
+		return errors.New("Missing Redis port")
+	}
+
+	if len(config.CopyQueues) == 0 {
+		return errors.New("Missing Redis output queues")
+	}
+
+	return nil
+}
+
+func (redisServer *RedisServer) Init(config yaml.MapSlice, sender buffer.Sender) error {
 	var redisConfig *Config
-	if err := json.Unmarshal(config, &redisConfig); err != nil {
+
+	// go-yaml doesn't have a great way to partially unmarshal YAML data
+	// See https://github.com/go-yaml/yaml/issues/13
+	yamlConfig, _ := yaml.Marshal(config)
+
+	if err := yaml.Unmarshal(yamlConfig, &redisConfig); err != nil {
 		return fmt.Errorf("Error parsing Redis config: %v", err)
+	}
+
+	if err := redisServer.ValidateConfig(redisConfig); err != nil {
+		return fmt.Errorf("Error in config: %v", err)
 	}
 
 	redisServer.config = *redisConfig
@@ -118,10 +145,10 @@ func (redisServer *RedisServer) Start() error {
 	redisServer.sender.AddSubscriber(redisServer.config.Host, receiveChan)
 	defer redisServer.sender.DelSubscriber(redisServer.config.Host)
 
-	allQueues := make([]*RedisQueue, len(redisServer.config.Keys))
+	allQueues := make([]*RedisQueue, len(redisServer.config.CopyQueues))
 
 	// Create Redis queue
-	for index, key := range redisServer.config.Keys {
+	for index, key := range redisServer.config.CopyQueues {
 		redisQueue := NewRedisQueue(redisServer.config, key)
 		allQueues[index] = redisQueue
 		go redisQueue.Start()

@@ -2,6 +2,7 @@ package redis
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"github.com/packetzoom/logslammer/buffer"
 	"github.com/packetzoom/logslammer/input"
 	"github.com/paulbellamy/ratecounter"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -19,12 +21,12 @@ const (
 )
 
 type Config struct {
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	Db         int64  `json:"db"`
-	Password   string `json:"password"`
-	KeyName    string `json:"keyName"`
-	JsonDecode bool   `json:"decode"`
+	Host       string `yaml:"host"`
+	Port       int    `yaml:"port"`
+	Db         int64  `yaml:"db"`
+	Password   string `yaml:"password"`
+	QueueName  string `yaml:"queue_name"`
+	JsonDecode bool   `yaml:"json_decode"`
 }
 
 type RedisInputServer struct {
@@ -92,10 +94,35 @@ func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 	return nil
 }
 
-func (redisServer *RedisInputServer) Init(config json.RawMessage, receiver input.Receiver) error {
+func (redisServer *RedisInputServer) ValidateConfig(config *Config) error {
+	if len(config.Host) == 0 {
+		return errors.New("Missing Redis host")
+	}
+
+	if config.Port <= 0 {
+		return errors.New("Missing Redis port")
+	}
+
+	if len(config.QueueName) == 0 {
+		return errors.New("Missing Redis queue name")
+	}
+
+	return nil
+}
+
+func (redisServer *RedisInputServer) Init(config yaml.MapSlice, receiver input.Receiver) error {
 	var redisConfig *Config
-	if err := json.Unmarshal(config, &redisConfig); err != nil {
+
+	// go-yaml doesn't have a great way to partially unmarshal YAML data
+	// See https://github.com/go-yaml/yaml/issues/13
+	yamlConfig, _ := yaml.Marshal(config)
+
+	if err := yaml.Unmarshal(yamlConfig, &redisConfig); err != nil {
 		return fmt.Errorf("Error parsing Redis config: %v", err)
+	}
+
+	if err := redisServer.ValidateConfig(redisConfig); err != nil {
+		return fmt.Errorf("Error in config: %v", err)
 	}
 
 	redisServer.config = *redisConfig
@@ -105,7 +132,7 @@ func (redisServer *RedisInputServer) Init(config json.RawMessage, receiver input
 }
 
 func (redisServer *RedisInputServer) Start() error {
-	log.Println("Starting Redis input")
+	log.Println("Starting Redis input on queue", redisServer.config.QueueName)
 	port := strconv.Itoa(redisServer.config.Port)
 
 	// Create Redis queue
@@ -113,7 +140,7 @@ func (redisServer *RedisInputServer) Start() error {
 		port,
 		redisServer.config.Password,
 		redisServer.config.Db,
-		redisServer.config.KeyName)
+		redisServer.config.QueueName)
 
 	consumer, err := queue.AddConsumer("redisInput")
 

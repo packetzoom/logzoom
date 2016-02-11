@@ -1,14 +1,14 @@
 package output
 
 import (
-	"encoding/json"
 	"fmt"
+	"gopkg.in/yaml.v2"
 
 	"github.com/packetzoom/logslammer/buffer"
 )
 
 type Output interface {
-	Init(json.RawMessage, buffer.Sender) error
+	Init(yaml.MapSlice, buffer.Sender) error
 	Start() error
 	Stop() error
 }

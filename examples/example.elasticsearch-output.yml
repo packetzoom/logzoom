@@ -1,0 +1,16 @@
+---
+inputs:
+  redis:
+    db: 10
+    host: localhost
+    queue_name: elasticsearch
+    port: 6379
+outputs:
+  elasticsearch:
+    hosts:
+      - http://localhost:9200
+    index: "logstash"
+    index_type: "logslammer"
+    gzip_enabled: false
+    info_log_enabled: true
+    error_log_enabled: true

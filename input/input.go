@@ -1,8 +1,8 @@
 package input
 
 import (
-	"encoding/json"
 	"fmt"
+	"gopkg.in/yaml.v2"
 
 	"github.com/packetzoom/logslammer/buffer"
 )
@@ -12,7 +12,7 @@ type Receiver interface {
 }
 
 type Input interface {
-	Init(json.RawMessage, Receiver) error
+	Init(yaml.MapSlice, Receiver) error
 	Start() error
 	Stop() error
 }

@@ -1,7 +1,7 @@
 package elasticsearch
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,6 +12,7 @@ import (
 	"github.com/packetzoom/logslammer/output"
 	"github.com/paulbellamy/ratecounter"
 	"gopkg.in/olivere/elastic.v2"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -32,11 +33,13 @@ type Indexer struct {
 }
 
 type Config struct {
-	Hosts       []string `json:"hosts"`
-	IndexPrefix string   `json:"index"`
-	IndexType   string   `json:"indexType"`
-	Timeout     int      `json:"timeout"`
-	GzipEnabled bool     `json:"gzipEnabled"`
+	Hosts           []string `yaml:"hosts"`
+	IndexPrefix     string   `yaml:"index"`
+	IndexType       string   `yaml:"index_type"`
+	Timeout         int      `yaml:"timeout"`
+	GzipEnabled     bool     `yaml:"gzip_enabled"`
+	InfoLogEnabled  bool     `yaml:"info_log_enabled"`
+	ErrorLogEnabled bool     `yaml:"error_log_enabled"`
 }
 
 type ESServer struct {
@@ -101,9 +104,30 @@ func (i *Indexer) index(ev *buffer.Event) error {
 	return i.flush()
 }
 
-func (e *ESServer) Init(config json.RawMessage, b buffer.Sender) error {
+func (e *ESServer) ValidateConfig(config *Config) error {
+	if len(config.Hosts) == 0 {
+		return errors.New("Missing hosts")
+	}
+
+	if len(config.IndexPrefix) == 0 {
+		return errors.New("Missing index prefix (e.g. logstash)")
+	}
+
+	if len(config.IndexType) == 0 {
+		return errors.New("Missing index type (e.g. logstash)")
+	}
+
+	return nil
+}
+
+func (e *ESServer) Init(config yaml.MapSlice, b buffer.Sender) error {
 	var esConfig *Config
-	if err := json.Unmarshal(config, &esConfig); err != nil {
+
+	// go-yaml doesn't have a great way to partially unmarshal YAML data
+	// See https://github.com/go-yaml/yaml/issues/13
+	yamlConfig, _ := yaml.Marshal(config)
+
+	if err := yaml.Unmarshal(yamlConfig, &esConfig); err != nil {
 		return fmt.Errorf("Error parsing elasticsearch config: %v", err)
 	}
 
@@ -143,11 +167,22 @@ func (es *ESServer) Start() error {
 		log.Println("Setting GZIP enabled:", es.config.GzipEnabled)
 
 		httpClient.Timeout = timeout
+
+		var infoLogger, errorLogger *log.Logger
+
+		if es.config.InfoLogEnabled {
+			infoLogger = log.New(os.Stdout, "", log.LstdFlags)
+		}
+
+		if es.config.ErrorLogEnabled {
+			errorLogger = log.New(os.Stderr, "", log.LstdFlags)
+		}
+
 		client, err = elastic.NewClient(elastic.SetURL(es.hosts...),
 			elastic.SetHttpClient(httpClient),
 			elastic.SetGzip(es.config.GzipEnabled),
-			elastic.SetInfoLog(log.New(os.Stdout, "", log.LstdFlags)),
-			elastic.SetErrorLog(log.New(os.Stderr, "", log.LstdFlags)))
+			elastic.SetInfoLog(infoLogger),
+			elastic.SetErrorLog(errorLogger))
 
 		if err != nil {
 			log.Printf("Error starting Elasticsearch: %s, will retry", err)

@@ -3,7 +3,8 @@ inputs:
   redis:
     db: 10
     host: localhost
-    queue_name: elasticsearch
+    input_queue: elasticsearch
+    working_queue: es_working
     port: 6379
 outputs:
   elasticsearch:

@@ -21,12 +21,13 @@ const (
 )
 
 type Config struct {
-	Host       string `yaml:"host"`
-	Port       int    `yaml:"port"`
-	Db         int64  `yaml:"db"`
-	Password   string `yaml:"password"`
-	QueueName  string `yaml:"queue_name"`
-	JsonDecode bool   `yaml:"json_decode"`
+	Host         string `yaml:"host"`
+	Port         int    `yaml:"port"`
+	Db           int64  `yaml:"db"`
+	Password     string `yaml:"password"`
+	InputQueue   string `yaml:"input_queue"`
+	WorkingQueue string `yaml:"working_queue"`
+	JsonDecode   bool   `yaml:"json_decode"`
 }
 
 type RedisInputServer struct {
@@ -103,8 +104,12 @@ func (redisServer *RedisInputServer) ValidateConfig(config *Config) error {
 		return errors.New("Missing Redis port")
 	}
 
-	if len(config.QueueName) == 0 {
-		return errors.New("Missing Redis queue name")
+	if len(config.InputQueue) == 0 {
+		return errors.New("Missing Redis input queue name")
+	}
+
+	if len(config.WorkingQueue) == 0 {
+		return errors.New("Missing Redis working queue name")
 	}
 
 	return nil
@@ -132,7 +137,10 @@ func (redisServer *RedisInputServer) Init(config yaml.MapSlice, receiver input.R
 }
 
 func (redisServer *RedisInputServer) Start() error {
-	log.Println("Starting Redis input on queue", redisServer.config.QueueName)
+	log.Printf("Starting Redis input on input queue: %s, working queue: %s",
+		redisServer.config.InputQueue,
+		redisServer.config.WorkingQueue)
+
 	port := strconv.Itoa(redisServer.config.Port)
 
 	// Create Redis queue
@@ -140,9 +148,9 @@ func (redisServer *RedisInputServer) Start() error {
 		port,
 		redisServer.config.Password,
 		redisServer.config.Db,
-		redisServer.config.QueueName)
+		redisServer.config.InputQueue)
 
-	consumer, err := queue.AddConsumer("redisInput")
+	consumer, err := queue.AddConsumer(redisServer.config.WorkingQueue)
 
 	if err != nil {
 		log.Println("Error opening Redis input")

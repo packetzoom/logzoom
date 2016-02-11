@@ -3,7 +3,8 @@ inputs:
   redis:
     db: 10
     host: localhost
-    queue_name: s3
+    input_queue: s3
+    working_queue: s3_1
     port: 6379
 outputs:
   s3:

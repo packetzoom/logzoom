@@ -183,19 +183,29 @@ func init() {
 
 func (s3Writer *S3Writer) ValidateConfig(config *Config) error {
 	if len(config.LocalPath) == 0 {
-		return errors.New("Missing local path")
+		return errors.New("missing local path")
+	}
+
+	// Create the local path if necessary
+	if err := os.MkdirAll(config.LocalPath, 0700); err != nil {
+		return errors.New("could not mkdir " + config.LocalPath)
+	}
+
+	// Try writing to local path
+	if _, err := ioutil.TempFile(config.LocalPath, "logslammer"); err != nil {
+		return errors.New("unable to write to " + config.LocalPath)
 	}
 
 	if len(config.AwsS3Bucket) == 0 {
-		return errors.New("Missing AWS S3 bucket")
+		return errors.New("missing AWS S3 bucket")
 	}
 
 	if len(config.AwsS3Region) == 0 {
-		return errors.New("Missing AWS S3 region")
+		return errors.New("missing AWS S3 region")
 	}
 
 	if len(config.AwsS3OutputKey) == 0 {
-		return errors.New("Missing AWS S3 output key")
+		return errors.New("missing AWS S3 output key")
 	}
 
 	return nil

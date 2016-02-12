@@ -160,7 +160,7 @@ func (es *ESServer) insertIndexTemplate(client *elastic.Client) error {
 		return err
 	}
 
-	template["template"] = es.config.IndexPrefix
+	template["template"] = es.config.IndexPrefix + "-*"
 
 	inserter := elastic.NewIndicesPutTemplateService(client)
 	inserter.Name(es.config.IndexPrefix)

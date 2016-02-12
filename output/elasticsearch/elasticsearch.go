@@ -1,6 +1,7 @@
 package elasticsearch
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -151,6 +152,30 @@ func readInputChannel(idx *Indexer, receiveChan chan *buffer.Event) {
 	}
 }
 
+func (es *ESServer) insertIndexTemplate(client *elastic.Client) error {
+	var template map[string]interface{}
+	err := json.Unmarshal([]byte(IndexTemplate), &template)
+
+	if err != nil {
+		return err
+	}
+
+	template["template"] = es.config.IndexPrefix
+
+	inserter := elastic.NewIndicesPutTemplateService(client)
+	inserter.Name(es.config.IndexPrefix)
+	inserter.Create(true)
+	inserter.BodyJson(template)
+
+	response, err := inserter.Do()
+
+	if response != nil {
+		log.Println("Inserted template response:", response.Acknowledged)
+	}
+
+	return err
+}
+
 func (es *ESServer) Start() error {
 	var client *elastic.Client
 	var err error
@@ -189,6 +214,8 @@ func (es *ESServer) Start() error {
 			time.Sleep(2 * time.Second)
 			continue
 		}
+
+		es.insertIndexTemplate(client)
 
 		break
 	}

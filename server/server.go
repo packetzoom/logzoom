@@ -72,7 +72,7 @@ func (s *Server) Start() {
 		s.inputs[name] = in
 	}
 
-	// Start ouputs
+	// Start outputs
 	for name, config := range s.Config.Outputs {
 		out, err := output.Load(name)
 		if err != nil {

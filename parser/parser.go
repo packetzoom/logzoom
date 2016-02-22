@@ -136,7 +136,7 @@ func (p *Parser) read() (uint32, error) {
 			ev.Fields = &fields
 
 			// Send to the receiver which is a buffer. We block because...
-			p.Recv.Send(&ev)
+			p.Recv.InputReceived(&ev)
 		case "2J": // JSON
 			//log.Printf("Got JSON data")
 			binary.Read(buff, binary.BigEndian, &seq)
@@ -167,7 +167,7 @@ func (p *Parser) read() (uint32, error) {
 			ev.Fields = &fields
 
 			// Send to the receiver which is a buffer. We block because...
-			p.Recv.Send(&ev)
+			p.Recv.InputReceived(&ev)
 
 		default:
 			return seq, fmt.Errorf("unknown type: %s", b)

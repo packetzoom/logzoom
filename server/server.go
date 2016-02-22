@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/packetzoom/logslammer/buffer"
+	"github.com/packetzoom/logslammer/filter"
 	"github.com/packetzoom/logslammer/input"
 	"github.com/packetzoom/logslammer/output"
 )
@@ -18,6 +19,7 @@ type Server struct {
 
 	mtx     sync.Mutex
 	inputs  map[string]input.Input
+	filters map[string]filter.Filter
 	outputs map[string]output.Output
 }
 
@@ -37,6 +39,7 @@ func New(configFile string) (*Server, error) {
 		Config:  config,
 		Buffer:  buffer.New(),
 		inputs:  make(map[string]input.Input),
+		filters: make(map[string]filter.Filter),
 		outputs: make(map[string]output.Output),
 	}, nil
 }
@@ -71,6 +74,28 @@ func (s *Server) Start() {
 
 		s.inputs[name] = in
 	}
+
+	pipes := make([]filter.Pipe, len(s.Config.Filters))
+	index := 0
+
+	// Start filters
+	for name, config := range s.Config.Filters {
+		in, err := filter.Load(name)
+
+		if err != nil {
+			log.Println(err.Error)
+			continue
+		}
+
+		if err := in.Init(config); err != nil {
+			log.Fatalf("Failed to init %s filter: %v", name, err)
+		}
+
+		pipes[index] = in
+		index += 1
+	}
+
+	s.Buffer.ProcessChain = filter.NewPipeline(pipes...)
 
 	// Start outputs
 	for name, config := range s.Config.Outputs {

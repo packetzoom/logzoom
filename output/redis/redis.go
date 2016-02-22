@@ -12,7 +12,7 @@ import (
 	"github.com/packetzoom/logslammer/output"
 	"github.com/paulbellamy/ratecounter"
 
-	"gopkg.in/yaml.v2"
+	yaml_support "github.com/packetzoom/logslammer/yaml"
 )
 
 const (
@@ -119,14 +119,10 @@ func (redisServer *RedisServer) ValidateConfig(config *Config) error {
 	return nil
 }
 
-func (redisServer *RedisServer) Init(config yaml.MapSlice, sender buffer.Sender) error {
+func (redisServer *RedisServer) Init(yamlConfig yaml_support.RawMessage, sender buffer.Sender) error {
 	var redisConfig *Config
 
-	// go-yaml doesn't have a great way to partially unmarshal YAML data
-	// See https://github.com/go-yaml/yaml/issues/13
-	yamlConfig, _ := yaml.Marshal(config)
-
-	if err := yaml.Unmarshal(yamlConfig, &redisConfig); err != nil {
+	if err := yamlConfig.Unmarshal(&redisConfig); err != nil {
 		return fmt.Errorf("Error parsing Redis config: %v", err)
 	}
 

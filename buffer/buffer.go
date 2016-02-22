@@ -29,19 +29,25 @@ type subscriber struct {
 	Send chan *Event
 }
 
+type processor interface {
+	Enqueue(event *Event)
+	Dequeue(handler func(*Event))
+}
+
 type Buffer struct {
-	send        chan *Event
-	subscribers map[string]*subscriber
-	add         chan *subscriber
-	del         chan string
-	term        chan bool
-	ticker      *time.Ticker
+	inputCh      chan *Event
+	ProcessChain processor
+	subscribers  map[string]*subscriber
+	add          chan *subscriber
+	del          chan string
+	term         chan bool
+	ticker       *time.Ticker
 }
 
 func New() *Buffer {
 	return &Buffer{
 		ticker:      time.NewTicker(time.Duration(10) * time.Millisecond),
-		send:        make(chan *Event, bufSize),
+		inputCh:     make(chan *Event, bufSize),
 		subscribers: make(map[string]*subscriber),
 		add:         make(chan *subscriber, 1),
 		del:         make(chan string, 1),
@@ -67,15 +73,23 @@ func (b *Buffer) Publish(event *Event) {
 	}
 }
 
-func (b *Buffer) Send(event *Event) {
-	b.send <- event
+func (b *Buffer) InputReceived(event *Event) {
+	b.inputCh <- event
+}
+
+func (b *Buffer) FeedPipeline() {
+	for {
+		b.ProcessChain.Dequeue(b.Publish)
+	}
 }
 
 func (b *Buffer) Start() {
+	go b.FeedPipeline()
+
 	for {
 		select {
-		case e := <-b.send:
-			b.Publish(e)
+		case e := <-b.inputCh:
+			b.ProcessChain.Enqueue(e)
 		case s := <-b.add:
 			if _, ok := b.subscribers[s.Host]; ok {
 				log.Printf("A subscriber is already registered for %s\n", s.Host)

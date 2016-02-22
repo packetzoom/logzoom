@@ -12,8 +12,8 @@ import (
 	"github.com/adjust/redismq"
 	"github.com/packetzoom/logslammer/buffer"
 	"github.com/packetzoom/logslammer/input"
+	yaml_support "github.com/packetzoom/logslammer/yaml"
 	"github.com/paulbellamy/ratecounter"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -84,7 +84,7 @@ func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 					}
 				}
 
-				redisServer.receiver.Send(&ev)
+				redisServer.receiver.InputReceived(&ev)
 			}
 		} else {
 			log.Printf("Error reading from Redis: %s, sleeping", err)
@@ -115,14 +115,10 @@ func (redisServer *RedisInputServer) ValidateConfig(config *Config) error {
 	return nil
 }
 
-func (redisServer *RedisInputServer) Init(config yaml.MapSlice, receiver input.Receiver) error {
+func (redisServer *RedisInputServer) Init(yamlConfig yaml_support.RawMessage, receiver input.Receiver) error {
 	var redisConfig *Config
 
-	// go-yaml doesn't have a great way to partially unmarshal YAML data
-	// See https://github.com/go-yaml/yaml/issues/13
-	yamlConfig, _ := yaml.Marshal(config)
-
-	if err := yaml.Unmarshal(yamlConfig, &redisConfig); err != nil {
+	if err := yamlConfig.Unmarshal(&redisConfig); err != nil {
 		return fmt.Errorf("Error parsing Redis config: %v", err)
 	}
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/packetzoom/logslammer/buffer"
 	"github.com/packetzoom/logslammer/output"
-	"gopkg.in/yaml.v2"
+	yaml_support "github.com/packetzoom/logslammer/yaml"
 )
 
 const (
@@ -57,14 +57,10 @@ func (s *TCPServer) accept(c net.Conn) {
 
 }
 
-func (s *TCPServer) Init(config yaml.MapSlice, b buffer.Sender) error {
+func (s *TCPServer) Init(yamlConfig yaml_support.RawMessage, b buffer.Sender) error {
 	var tcpConfig *Config
 
-	// go-yaml doesn't have a great way to partially unmarshal YAML data
-	// See https://github.com/go-yaml/yaml/issues/13
-	yamlConfig, _ := yaml.Marshal(config)
-
-	if err := yaml.Unmarshal(yamlConfig, &tcpConfig); err != nil {
+	if err := yamlConfig.Unmarshal(&tcpConfig); err != nil {
 		return fmt.Errorf("Error parsing tcp config: %v", err)
 	}
 

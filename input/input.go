@@ -2,17 +2,17 @@ package input
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v2"
 
 	"github.com/packetzoom/logslammer/buffer"
+	yaml_support "github.com/packetzoom/logslammer/yaml"
 )
 
 type Receiver interface {
-	Send(*buffer.Event)
+	InputReceived(*buffer.Event)
 }
 
 type Input interface {
-	Init(yaml.MapSlice, Receiver) error
+	Init(yaml_support.RawMessage, Receiver) error
 	Start() error
 	Stop() error
 }

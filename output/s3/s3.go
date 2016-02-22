@@ -22,7 +22,7 @@ import (
 	"github.com/jehiah/go-strftime"
 	"github.com/paulbellamy/ratecounter"
 
-	"gopkg.in/yaml.v2"
+	yaml_support "github.com/packetzoom/logslammer/yaml"
 )
 
 const (
@@ -211,14 +211,10 @@ func (s3Writer *S3Writer) ValidateConfig(config *Config) error {
 	return nil
 }
 
-func (s3Writer *S3Writer) Init(config yaml.MapSlice, sender buffer.Sender) error {
+func (s3Writer *S3Writer) Init(yamlConfig yaml_support.RawMessage, sender buffer.Sender) error {
 	var s3Config *Config
 
-	// go-yaml doesn't have a great way to partially unmarshal YAML data
-	// See https://github.com/go-yaml/yaml/issues/13
-	yamlConfig, _ := yaml.Marshal(config)
-
-	if err := yaml.Unmarshal(yamlConfig, &s3Config); err != nil {
+	if err := yamlConfig.Unmarshal(&s3Config); err != nil {
 		return fmt.Errorf("Error parsing S3 config: %v", err)
 	}
 

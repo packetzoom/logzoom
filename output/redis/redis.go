@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -60,6 +61,7 @@ func NewRedisQueue(config Config, key string) *RedisQueue {
 }
 
 func (redisQueue *RedisQueue) insertToRedis(text string) error {
+	log.Println("inserting to Redis:", text)
 	err := redisQueue.queue.Put(text)
 
 	if err != nil {
@@ -158,7 +160,18 @@ func (redisServer *RedisServer) Start() error {
 		select {
 		case ev := <-receiveChan:
 			rateCounter.Incr(1)
-			text := *ev.Text
+			var text string
+
+			if ev.Text != nil {
+				text = *ev.Text
+			} else {
+				output, err := json.Marshal(ev.OutputFields)
+
+				if err != nil {
+					text = string(output)
+				}
+			}
+
 			for _, queue := range allQueues {
 				queue.data <- text
 			}

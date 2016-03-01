@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	_ "github.com/packetzoom/logslammer/filter/filebeat"
 	_ "github.com/packetzoom/logslammer/input/lumberjack"
 	_ "github.com/packetzoom/logslammer/input/redis"
 	_ "github.com/packetzoom/logslammer/output/elasticsearch"

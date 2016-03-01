@@ -9,7 +9,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"strconv"
 	"strings"
 	"time"
 
@@ -119,7 +118,8 @@ func (p *Parser) read() (uint32, error) {
 
 			var ev buffer.Event
 			fields := make(map[string]interface{})
-			fields["timestamp"] = time.Now().Format(time.RFC3339Nano)
+			ev.Source = "lumberjack"
+			ev.ReceivedTimestamp = time.Now().Format(time.RFC3339Nano)
 
 			for j := uint32(0); j < count; j++ {
 				if k, v, err = p.readKV(); err != nil {
@@ -128,11 +128,7 @@ func (p *Parser) read() (uint32, error) {
 				fields[string(k)] = string(v)
 			}
 
-			ev.Source = fmt.Sprintf("lumberjack://%s%s", fields["host"], fields["file"])
-			ev.Offset, _ = strconv.ParseInt(fields["offset"].(string), 10, 64)
-			ev.Line = uint64(seq)
-			t := fields["line"].(string)
-			ev.Text = &t
+			ev.SourceIp = p.Conn.RemoteAddr().String()
 			ev.Fields = &fields
 
 			// Send to the receiver which is a buffer. We block because...
@@ -150,6 +146,10 @@ func (p *Parser) read() (uint32, error) {
 			}
 
 			var ev buffer.Event
+			ev.Source = "lumberjack"
+			ev.ReceivedTimestamp = time.Now().Format(time.RFC3339Nano)
+			ev.SourceIp = p.Conn.RemoteAddr().String()
+
 			var fields map[string]interface{}
 			decoder := json.NewDecoder(strings.NewReader(string(jsonData)))
 			decoder.UseNumber()
@@ -158,14 +158,8 @@ func (p *Parser) read() (uint32, error) {
 			if err != nil {
 				return seq, err
 			}
-			ev.Source = fmt.Sprintf("lumberjack://%s%s", fields["host"], fields["file"])
-			jsonNumber := fields["offset"].(json.Number)
-			ev.Offset, _ = jsonNumber.Int64()
-			ev.Line = uint64(seq)
-			t := fields["message"].(string)
-			ev.Text = &t
-			ev.Fields = &fields
 
+			ev.Fields = &fields
 			// Send to the receiver which is a buffer. We block because...
 			p.Recv.InputReceived(&ev)
 

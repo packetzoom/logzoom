@@ -184,11 +184,10 @@ func (p *Parser) Parse() {
 Read:
 	for {
 		n, err := p.Conn.Read(b)
-		switch {
-		case err == io.EOF:
+
+		if err != nil || n == 0 {
+			log.Printf("[%s] error reading %v", p.Conn.RemoteAddr().String(), err)
 			break Read
-		case n == 0:
-			goto Read
 		}
 
 		switch string(b) {

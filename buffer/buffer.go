@@ -30,7 +30,7 @@ type subscriber struct {
 }
 
 type Buffer struct {
-	send        chan *Event
+	inputCh     chan *Event
 	subscribers map[string]*subscriber
 	add         chan *subscriber
 	del         chan string
@@ -41,7 +41,7 @@ type Buffer struct {
 func New() *Buffer {
 	return &Buffer{
 		ticker:      time.NewTicker(time.Duration(10) * time.Millisecond),
-		send:        make(chan *Event, bufSize),
+		inputCh:     make(chan *Event, bufSize),
 		subscribers: make(map[string]*subscriber),
 		add:         make(chan *subscriber, 1),
 		del:         make(chan string, 1),
@@ -67,14 +67,14 @@ func (b *Buffer) Publish(event *Event) {
 	}
 }
 
-func (b *Buffer) Send(event *Event) {
-	b.send <- event
+func (b *Buffer) InputReceived(event *Event) {
+	b.inputCh <- event
 }
 
 func (b *Buffer) Start() {
 	for {
 		select {
-		case e := <-b.send:
+		case e := <-b.inputCh:
 			b.Publish(e)
 		case s := <-b.add:
 			if _, ok := b.subscribers[s.Host]; ok {

@@ -11,9 +11,9 @@ import (
 
 	"github.com/packetzoom/logslammer/buffer"
 	"github.com/packetzoom/logslammer/output"
+	yaml_support "github.com/packetzoom/logslammer/yaml"
 	"github.com/paulbellamy/ratecounter"
 	"gopkg.in/olivere/elastic.v2"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -121,14 +121,10 @@ func (e *ESServer) ValidateConfig(config *Config) error {
 	return nil
 }
 
-func (e *ESServer) Init(config yaml.MapSlice, b buffer.Sender) error {
+func (e *ESServer) Init(yamlConfig yaml_support.RawMessage, b buffer.Sender) error {
 	var esConfig *Config
 
-	// go-yaml doesn't have a great way to partially unmarshal YAML data
-	// See https://github.com/go-yaml/yaml/issues/13
-	yamlConfig, _ := yaml.Marshal(config)
-
-	if err := yaml.Unmarshal(yamlConfig, &esConfig); err != nil {
+	if err := yamlConfig.Unmarshal(&esConfig); err != nil {
 		return fmt.Errorf("Error parsing elasticsearch config: %v", err)
 	}
 

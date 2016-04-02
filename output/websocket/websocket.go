@@ -12,7 +12,7 @@ import (
 	"github.com/packetzoom/logslammer/output"
 	"golang.org/x/net/websocket"
 
-	"gopkg.in/yaml.v2"
+	yaml_support "github.com/packetzoom/logslammer/yaml"
 )
 
 const (
@@ -124,14 +124,10 @@ func (ws *WebSocketServer) logListMaintainer() {
 	}
 }
 
-func (ws *WebSocketServer) Init(config yaml.MapSlice, b buffer.Sender) error {
+func (ws *WebSocketServer) Init(yamlConfig yaml_support.RawMessage, b buffer.Sender) error {
 	var wsConfig *Config
 
-	// go-yaml doesn't have a great way to partially unmarshal YAML data
-	// See https://github.com/go-yaml/yaml/issues/13
-	yamlConfig, _ := yaml.Marshal(config)
-
-	if err := yaml.Unmarshal(yamlConfig, &wsConfig); err != nil {
+	if err := yamlConfig.Unmarshal(&wsConfig); err != nil {
 		return fmt.Errorf("Error parsing websocket config: %v", err)
 	}
 

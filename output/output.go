@@ -2,13 +2,12 @@ package output
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v2"
-
 	"github.com/packetzoom/logslammer/buffer"
+	yaml_support "github.com/packetzoom/logslammer/yaml"
 )
 
 type Output interface {
-	Init(yaml.MapSlice, buffer.Sender) error
+	Init(yaml_support.RawMessage, buffer.Sender) error
 	Start() error
 	Stop() error
 }

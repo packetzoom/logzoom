@@ -2,13 +2,14 @@ package server
 
 import (
 	"fmt"
+	yaml_support "github.com/packetzoom/logslammer/yaml"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 )
 
 type Config struct {
-	Inputs  map[string]yaml.MapSlice `yaml:"inputs"`
-	Outputs map[string]yaml.MapSlice `yaml:"outputs"`
+	Inputs  map[string]yaml_support.RawMessage `yaml:"inputs"`
+	Outputs map[string]yaml_support.RawMessage `yaml:"outputs"`
 }
 
 func LoadConfig(file string) (*Config, error) {

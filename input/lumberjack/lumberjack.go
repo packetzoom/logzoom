@@ -3,12 +3,12 @@ package lumberjack
 import (
 	"crypto/tls"
 	"fmt"
-	"gopkg.in/yaml.v2"
 	"log"
 	"net"
 
 	"github.com/packetzoom/logslammer/input"
 	"github.com/packetzoom/logslammer/parser"
+	yaml_support "github.com/packetzoom/logslammer/yaml"
 )
 
 type Config struct {
@@ -37,14 +37,10 @@ func lumberConn(c net.Conn, r input.Receiver) {
 	log.Printf("[%s] closing lumberjack connection", c.RemoteAddr().String())
 }
 
-func (lj *LJServer) Init(config yaml.MapSlice, r input.Receiver) error {
+func (lj *LJServer) Init(yamlConfig yaml_support.RawMessage, r input.Receiver) error {
 	var ljConfig *Config
 
-	// go-yaml doesn't have a great way to partially unmarshal YAML data
-	// See https://github.com/go-yaml/yaml/issues/13
-	yamlConfig, _ := yaml.Marshal(config)
-
-	if err := yaml.Unmarshal(yamlConfig, &ljConfig); err != nil {
+	if err := yamlConfig.Unmarshal(&ljConfig); err != nil {
 		return fmt.Errorf("Error parsing lumberjack config: %v", err)
 	}
 

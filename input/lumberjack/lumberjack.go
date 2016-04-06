@@ -7,8 +7,8 @@ import (
 	"log"
 	"net"
 
-	"github.com/packetzoom/logslammer/input"
-	"github.com/packetzoom/logslammer/parser"
+	"github.com/packetzoom/logzoom/input"
+	"github.com/packetzoom/logzoom/parser"
 )
 
 type Config struct {

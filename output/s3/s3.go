@@ -16,8 +16,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
-	"github.com/packetzoom/logslammer/buffer"
-	"github.com/packetzoom/logslammer/output"
+	"github.com/packetzoom/logzoom/buffer"
+	"github.com/packetzoom/logzoom/output"
 
 	"github.com/jehiah/go-strftime"
 	"github.com/paulbellamy/ratecounter"
@@ -192,7 +192,7 @@ func (s3Writer *S3Writer) ValidateConfig(config *Config) error {
 	}
 
 	// Try writing to local path
-	if _, err := ioutil.TempFile(config.LocalPath, "logslammer"); err != nil {
+	if _, err := ioutil.TempFile(config.LocalPath, "logzoom"); err != nil {
 		return errors.New("unable to write to " + config.LocalPath)
 	}
 

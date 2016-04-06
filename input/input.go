@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"gopkg.in/yaml.v2"
 
-	"github.com/packetzoom/logslammer/buffer"
+	"github.com/packetzoom/logzoom/buffer"
 )
 
 type Receiver interface {

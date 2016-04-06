@@ -5,8 +5,8 @@ import (
 	"log"
 	"net"
 
-	"github.com/packetzoom/logslammer/buffer"
-	"github.com/packetzoom/logslammer/output"
+	"github.com/packetzoom/logzoom/buffer"
+	"github.com/packetzoom/logzoom/output"
 	"gopkg.in/yaml.v2"
 )
 

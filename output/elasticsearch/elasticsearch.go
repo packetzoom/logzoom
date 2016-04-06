@@ -9,8 +9,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/packetzoom/logslammer/buffer"
-	"github.com/packetzoom/logslammer/output"
+	"github.com/packetzoom/logzoom/buffer"
+	"github.com/packetzoom/logzoom/output"
 	"github.com/paulbellamy/ratecounter"
 	"gopkg.in/olivere/elastic.v2"
 	"gopkg.in/yaml.v2"

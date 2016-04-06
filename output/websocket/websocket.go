@@ -8,8 +8,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/packetzoom/logslammer/buffer"
-	"github.com/packetzoom/logslammer/output"
+	"github.com/packetzoom/logzoom/buffer"
+	"github.com/packetzoom/logzoom/output"
 	"golang.org/x/net/websocket"
 
 	"gopkg.in/yaml.v2"

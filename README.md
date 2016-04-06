@@ -1,6 +1,6 @@
-# Logslammer- A Lumberjack => Logstash indexer in Go
+# LogZoom - A Lumberjack => Logstash indexer in Go
 
-Logslammer is a lightweight, Lumberjack-compliant log indexer based off the fine
+LogZoom is a lightweight, Lumberjack-compliant log indexer based off the fine
 work of Hailo's [Logslam](https://github.com/hailocab/logslam). It accepts
 the Lumberjack v2 protocol, which is currently supported by [Elastic's Filebeat]
 (https://github.com/elastic/beats).

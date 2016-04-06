@@ -7,9 +7,9 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/packetzoom/logslammer/buffer"
-	"github.com/packetzoom/logslammer/input"
-	"github.com/packetzoom/logslammer/output"
+	"github.com/packetzoom/logzoom/buffer"
+	"github.com/packetzoom/logzoom/input"
+	"github.com/packetzoom/logzoom/output"
 )
 
 type Server struct {

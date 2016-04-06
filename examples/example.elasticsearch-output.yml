@@ -11,7 +11,7 @@ outputs:
     hosts:
       - http://localhost:9200
     index: "logstash"
-    index_type: "logslammer"
+    index_type: "logzoom"
     gzip_enabled: false
     info_log_enabled: true
     error_log_enabled: true

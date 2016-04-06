@@ -32,18 +32,18 @@ config can be found in examples/example.config.yml:
 
 ```yaml
 inputs:
- lumberjack:
-  host: :7200
-  ssl_key: lumberjack.key
-  ssl_crt: lumberjack.crt
+  lumberjack:
+    host: 0.0.0.0:7200
+    ssl_crt: /etc/filebeat/logstash-forwarder.crt
+    ssl_key: /etc/filebeat/logstash-forwarder.key
 outputs:
- tcp:
-  host: :7201
- websocket:
-  host: :7202
- elasticsearch:
-  hosts:
-   - localhost:9200
+  tcp:
+    host: :7201
+  websocket:
+    host: :7202
+  elasticsearch:
+    hosts:
+      - http://localhost:9200
 ``````
 
 ### 2. Run the server

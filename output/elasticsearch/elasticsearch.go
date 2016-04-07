@@ -58,6 +58,13 @@ func init() {
 	})
 }
 
+// Dummy discard, satisfies io.Writer without importing io or os.
+type DevNull struct{}
+
+func (DevNull) Write(p []byte) (int, error) {
+	return len(p), nil
+}
+
 func indexName(idx string) string {
 	if len(idx) == 0 {
 		idx = defaultIndexPrefix
@@ -197,10 +204,14 @@ func (es *ESServer) Start() error {
 
 		if es.config.InfoLogEnabled {
 			infoLogger = log.New(os.Stdout, "", log.LstdFlags)
+		} else {
+			infoLogger = log.New(new(DevNull), "", log.LstdFlags)
 		}
 
 		if es.config.ErrorLogEnabled {
 			errorLogger = log.New(os.Stderr, "", log.LstdFlags)
+		} else {
+			errorLogger = log.New(new(DevNull), "", log.LstdFlags)
 		}
 
 		client, err = elastic.NewClient(elastic.SetURL(es.hosts...),

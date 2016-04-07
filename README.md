@@ -93,13 +93,16 @@ outputs:
 
 ```
 $ go get
-$ $GOPATH/bin/logslammer -config=examples/example.config.yml
-2015/01/20 20:59:03 Starting server
-2015/01/20 20:59:03 Starting buffer
-2015/01/20 20:59:03 Starting input filebeat
-2015/01/20 20:59:03 Starting output tcp
-2015/01/20 20:59:03 Starting output websocket
-2015/01/20 20:59:03 Starting output elasticsearch
+$ $GOPATH/bin/logzoom -config=examples/example.config.yml
+2016/04/07 20:22:50 Starting server
+2016/04/07 20:22:50 Starting buffer
+2016/04/07 20:22:50 Starting input filebeat
+2016/04/07 20:22:50 Starting output tcp
+2016/04/07 20:22:50 Starting output websocket
+2016/04/07 20:22:50 Starting output elasticsearch
+2016/04/07 20:22:50 Setting HTTP timeout to 1m0s
+2016/04/07 20:22:50 Setting GZIP enabled: false
+2016/04/07 20:22:50 Connected to Elasticsearch
 ```
 
 ### Streaming logs via TCP

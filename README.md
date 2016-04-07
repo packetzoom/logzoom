@@ -32,10 +32,10 @@ config can be found in examples/example.config.yml:
 
 ```yaml
 inputs:
-  lumberjack:
+  filebeat:
     host: 0.0.0.0:7200
-    ssl_crt: /etc/filebeat/logstash-forwarder.crt
-    ssl_key: /etc/filebeat/logstash-forwarder.key
+    ssl_crt: /etc/filebeat/filebeat.crt
+    ssl_key: /etc/filebeat/filebeat.key
 outputs:
   tcp:
     host: :7201
@@ -53,7 +53,7 @@ $ go get
 $ $GOPATH/bin/logslammer -config=examples/example.config.yml
 2015/01/20 20:59:03 Starting server
 2015/01/20 20:59:03 Starting buffer
-2015/01/20 20:59:03 Starting input lumberjack
+2015/01/20 20:59:03 Starting input filebeat
 2015/01/20 20:59:03 Starting output tcp
 2015/01/20 20:59:03 Starting output websocket
 2015/01/20 20:59:03 Starting output elasticsearch

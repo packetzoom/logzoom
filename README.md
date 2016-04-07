@@ -12,7 +12,7 @@ replacement for logstash and logslam.
 
 ### Inputs
 
-- Lumberjack V2 Protocol
+- Filebeat (Lumberjack V2 Protocol)
 - Redis Message Queue
 
 ### Outputs
@@ -71,3 +71,9 @@ nc localhost 7201
 Connect to http://localhost:7202 in a browser.
 A list of known sources will be displayed.
 ```
+
+### Elasticsearch support
+
+Note that currently only Elasticsearch 1.x is supported. If you need 2.x
+support, I think it is just a matter of updating [Olliver Eilhard's 3.x
+client](https://github.com/olivere/elastic#releases).

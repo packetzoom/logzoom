@@ -1,4 +1,4 @@
-package parser
+package filebeat
 
 import (
 	"bytes"
@@ -30,7 +30,7 @@ type Parser struct {
 	buffer     io.Reader
 }
 
-func New(c net.Conn, r input.Receiver) *Parser {
+func NewParser(c net.Conn, r input.Receiver) *Parser {
 	return &Parser{
 		Conn: c,
 		Recv: r,

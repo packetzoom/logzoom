@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	_ "github.com/packetzoom/logzoom/input/lumberjack"
+	_ "github.com/packetzoom/logzoom/input/filebeat"
 	_ "github.com/packetzoom/logzoom/input/redis"
 	_ "github.com/packetzoom/logzoom/output/elasticsearch"
 	_ "github.com/packetzoom/logzoom/output/redis"

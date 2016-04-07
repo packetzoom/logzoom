@@ -1,4 +1,4 @@
-package lumberjack
+package filebeat
 
 import (
 	"crypto/tls"
@@ -8,7 +8,6 @@ import (
 	"net"
 
 	"github.com/packetzoom/logzoom/input"
-	"github.com/packetzoom/logzoom/parser"
 )
 
 type Config struct {
@@ -23,17 +22,11 @@ type LJServer struct {
 	term   chan bool
 }
 
-func init() {
-	input.Register("lumberjack", &LJServer{
-		term: make(chan bool, 1),
-	})
-}
-
 // lumberConn handles an incoming connection from a lumberjack client
 func lumberConn(c net.Conn, r input.Receiver) {
 	defer c.Close()
 	log.Printf("[%s] accepting lumberjack connection", c.RemoteAddr().String())
-	parser.New(c, r).Parse()
+	NewParser(c, r).Parse()
 	log.Printf("[%s] closing lumberjack connection", c.RemoteAddr().String())
 }
 

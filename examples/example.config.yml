@@ -1,8 +1,8 @@
 inputs:
-  lumberjack:
+  filebeat:
     host: :7200
-    ssl_key: lumberjack.key
-    ssl_crt: lumberjack.crt
+    ssl_key: filebeat.key
+    ssl_crt: filebeat.crt
 outputs:
   tcp:
     host: :7201

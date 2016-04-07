@@ -75,5 +75,5 @@ A list of known sources will be displayed.
 ### Elasticsearch support
 
 Note that currently only Elasticsearch 1.x is supported. If you need 2.x
-support, I think it is just a matter of updating [Olliver Eilhard's 3.x
-client](https://github.com/olivere/elastic#releases).
+support, I think it is just a matter of updating LogZoom to use [Olliver
+Eilhard's 3.x client](https://github.com/olivere/elastic#releases).

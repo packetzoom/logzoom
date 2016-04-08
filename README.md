@@ -92,7 +92,7 @@ outputs:
 ### 2. Run the server
 
 ```
-$ go get
+$ go build
 $ $GOPATH/bin/logzoom -config=examples/example.config.yml
 2016/04/07 20:22:50 Starting server
 2016/04/07 20:22:50 Starting buffer

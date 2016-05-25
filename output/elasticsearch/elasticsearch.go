@@ -11,6 +11,7 @@ import (
 
 	"github.com/packetzoom/logzoom/buffer"
 	"github.com/packetzoom/logzoom/output"
+	"github.com/packetzoom/logzoom/route"
 	"github.com/paulbellamy/ratecounter"
 	"gopkg.in/olivere/elastic.v2"
 	"gopkg.in/yaml.v2"
@@ -44,6 +45,8 @@ type Config struct {
 }
 
 type ESServer struct {
+	name   string
+	fields map[string]string
 	config Config
 	host   string
 	hosts  []string
@@ -52,10 +55,14 @@ type ESServer struct {
 }
 
 func init() {
-	output.Register("elasticsearch", &ESServer{
+	output.Register("elasticsearch", New)
+}
+
+func New() (output.Output) {
+	return &ESServer{
 		host: fmt.Sprintf("%s:%d", defaultHost, time.Now().Unix()),
 		term: make(chan bool, 1),
-	})
+	}
 }
 
 // Dummy discard, satisfies io.Writer without importing io or os.
@@ -128,7 +135,7 @@ func (e *ESServer) ValidateConfig(config *Config) error {
 	return nil
 }
 
-func (e *ESServer) Init(config yaml.MapSlice, b buffer.Sender) error {
+func (e *ESServer) Init(name string, config yaml.MapSlice, b buffer.Sender, route route.Route) error {
 	var esConfig *Config
 
 	// go-yaml doesn't have a great way to partially unmarshal YAML data
@@ -139,6 +146,8 @@ func (e *ESServer) Init(config yaml.MapSlice, b buffer.Sender) error {
 		return fmt.Errorf("Error parsing elasticsearch config: %v", err)
 	}
 
+	e.name = name
+	e.fields = route.Fields
 	e.config = *esConfig
 	e.hosts = esConfig.Hosts
 	e.b = b
@@ -184,6 +193,10 @@ func (es *ESServer) insertIndexTemplate(client *elastic.Client) error {
 }
 
 func (es *ESServer) Start() error {
+	if (es.b == nil) {
+		log.Printf("[%s] No Route is specified for this output", es.name)
+		return nil
+	}
 	var client *elastic.Client
 	var err error
 

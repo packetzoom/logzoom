@@ -1,18 +1,44 @@
 ---
 inputs:
-  redis:
-    db: 10
-    host: localhost
-    input_queue: s3
-    working_queue: s3_1
-    port: 6379
+  - redis_type1:
+      redis:
+        db: 10
+        host: localhost
+        input_queue: type1_s3
+        port: 6379
+  - redis_type2:
+      redis:
+        db: 10
+        host: localhost
+        input_queue: type2_s3
+        port: 6379
+
 outputs:
-  s3:
-    aws_key_id: <YOUR KEY HERE>
-    aws_sec_key: <YOUR SECRET HERE>
-    aws_s3_bucket: your-s3-bucket
-    aws_s3_region: us-west-1
-    local_path: /tmp
-    s3_path: your-s3-path
-    time_slice_format: %Y-%m-%d/%H%M
-    aws_s3_output_key: %{path}/%{timeSlice}/%{hostname}_%{uuid}.gz
+  - s3_type1:
+      s3:
+        aws_key_id_loc: < Your AWS Key ID File Loc >
+        aws_sec_key_loc: < Your AWS Secret Access Key Loc >
+        aws_s3_bucket: < Your AWS Bucket >
+        aws_s3_region: < Your AWS Bucket Region >
+        local_path: "local-path-to-dump-temp-file"
+        s3_path: "path-in-bucket-to-put-the-file"
+        time_slice_format: "%Y-%m-%d/%H%M"
+        aws_s3_output_key: "%{path}/%{timeSlice}/%{hostname}_%{uuid}.gz"
+  - s3_type2:
+      s3:
+        aws_key_id_loc: < Your AWS Key ID File Loc >
+        aws_sec_key_loc: < Your AWS Secret Access Key Loc >
+        aws_s3_bucket: < Your AWS Bucket >
+        aws_s3_region: < Your AWS Bucket Region >
+        local_path: "local-path-to-dump-temp-file"
+        s3_path: "path-in-bucket-to-put-the-file"
+        time_slice_format: "%Y-%m-%d/%H%M"
+        aws_s3_output_key: "%{path}/%{timeSlice}/%{hostname}_%{uuid}.gz"
+
+routes:
+  - route1:
+      input: redis_type1
+      output: s3_type1
+  - route2:
+      input: redis_type2
+      output: s3_type2

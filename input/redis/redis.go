@@ -26,20 +26,22 @@ type Config struct {
 	Db           int64  `yaml:"db"`
 	Password     string `yaml:"password"`
 	InputQueue   string `yaml:"input_queue"`
-	WorkingQueue string `yaml:"working_queue"`
 	JsonDecode   bool   `yaml:"json_decode"`
 }
 
 type RedisInputServer struct {
+	name     string
 	config   Config
 	receiver input.Receiver
 	term     chan bool
 }
 
 func init() {
-	input.Register("redis", &RedisInputServer{
-		term: make(chan bool, 1),
-	})
+	input.Register("redis", New)
+}
+
+func New() input.Input {
+	return &RedisInputServer{term: make(chan bool, 1)}
 }
 
 func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
@@ -108,14 +110,10 @@ func (redisServer *RedisInputServer) ValidateConfig(config *Config) error {
 		return errors.New("Missing Redis input queue name")
 	}
 
-	if len(config.WorkingQueue) == 0 {
-		return errors.New("Missing Redis working queue name")
-	}
-
 	return nil
 }
 
-func (redisServer *RedisInputServer) Init(config yaml.MapSlice, receiver input.Receiver) error {
+func (redisServer *RedisInputServer) Init(name string, config yaml.MapSlice, receiver input.Receiver) error {
 	var redisConfig *Config
 
 	// go-yaml doesn't have a great way to partially unmarshal YAML data
@@ -130,6 +128,7 @@ func (redisServer *RedisInputServer) Init(config yaml.MapSlice, receiver input.R
 		return fmt.Errorf("Error in config: %v", err)
 	}
 
+	redisServer.name = name
 	redisServer.config = *redisConfig
 	redisServer.receiver = receiver
 
@@ -139,7 +138,7 @@ func (redisServer *RedisInputServer) Init(config yaml.MapSlice, receiver input.R
 func (redisServer *RedisInputServer) Start() error {
 	log.Printf("Starting Redis input on input queue: %s, working queue: %s",
 		redisServer.config.InputQueue,
-		redisServer.config.WorkingQueue)
+		redisServer.config.InputQueue + "_working")
 
 	port := strconv.Itoa(redisServer.config.Port)
 
@@ -150,7 +149,7 @@ func (redisServer *RedisInputServer) Start() error {
 		redisServer.config.Db,
 		redisServer.config.InputQueue)
 
-	consumer, err := queue.AddConsumer(redisServer.config.WorkingQueue)
+	consumer, err := queue.AddConsumer(redisServer.config.InputQueue + "_working")
 
 	if err != nil {
 		log.Println("Error opening Redis input")

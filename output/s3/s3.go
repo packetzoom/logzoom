@@ -18,6 +18,7 @@ import (
 
 	"github.com/packetzoom/logzoom/buffer"
 	"github.com/packetzoom/logzoom/output"
+	"github.com/packetzoom/logzoom/route"
 
 	"github.com/jehiah/go-strftime"
 	"github.com/paulbellamy/ratecounter"
@@ -40,8 +41,8 @@ func uuid() string {
 }
 
 type Config struct {
-	AwsKeyId    string `yaml:"aws_key_id"`
-	AwsSecKey   string `yaml:"aws_sec_key"`
+	AwsKeyIdLoc string `yaml:"aws_key_id_loc"`
+	AwsSecKeyLoc string `yaml:"aws_sec_key_loc"`
 	AwsS3Bucket string `yaml:"aws_s3_bucket"`
 	AwsS3Region string `yaml:"aws_s3_region"`
 
@@ -63,10 +64,10 @@ type FileSaver struct {
 	RateCounter *ratecounter.RateCounter
 }
 
-func (fileSaver *FileSaver) WriteToFile(event *buffer.Event) error {
+func (fileSaver *FileSaver) WriteToFile(name string, event *buffer.Event) error {
 	if fileSaver.Writer == nil {
 		log.Println("Creating new S3 gzip writer")
-		file, err := ioutil.TempFile(fileSaver.Config.LocalPath, "s3_output_")
+		file, err := ioutil.TempFile(fileSaver.Config.LocalPath, name)
 
 		if err != nil {
 			log.Printf("Error creating temporary file:", err)
@@ -132,9 +133,8 @@ func (s3Writer *S3Writer) doUpload(fileInfo OutputFileInfo) error {
 		ContentEncoding: aws.String("gzip"),
 	})
 
-	log.Printf("%d events written to S3 %s", fileInfo.Count, result.Location)
-
 	if s3Error == nil {
+		log.Printf("%d events written to S3 %s", fileInfo.Count, result.Location)
 		os.Remove(fileInfo.Filename)
 	} else {
 		log.Printf("Error uploading to S3", s3Error)
@@ -168,6 +168,8 @@ func (s3Writer *S3Writer) InitiateUploadToS3(fileSaver *FileSaver) {
 }
 
 type S3Writer struct {
+	name          string
+	fields        map[string]string
 	Config        Config
 	Sender        buffer.Sender
 	S3Uploader    *s3manager.Uploader
@@ -176,9 +178,11 @@ type S3Writer struct {
 }
 
 func init() {
-	output.Register("s3", &S3Writer{
-		term: make(chan bool, 1),
-	})
+	output.Register("s3", New)
+}
+
+func New() (output.Output) {
+	return &S3Writer{term: make(chan bool, 1)}
 }
 
 func (s3Writer *S3Writer) ValidateConfig(config *Config) error {
@@ -211,7 +215,7 @@ func (s3Writer *S3Writer) ValidateConfig(config *Config) error {
 	return nil
 }
 
-func (s3Writer *S3Writer) Init(config yaml.MapSlice, sender buffer.Sender) error {
+func (s3Writer *S3Writer) Init(name string, config yaml.MapSlice, sender buffer.Sender, route route.Route) error {
 	var s3Config *Config
 
 	// go-yaml doesn't have a great way to partially unmarshal YAML data
@@ -226,13 +230,21 @@ func (s3Writer *S3Writer) Init(config yaml.MapSlice, sender buffer.Sender) error
 		return fmt.Errorf("Error in config: %v", err)
 	}
 
+	s3Writer.name = name
+	s3Writer.fields = route.Fields
 	s3Writer.uploadChannel = make(chan OutputFileInfo, maxSimultaneousUploads)
 	s3Writer.Config = *s3Config
 	s3Writer.Sender = sender
-
-	aws_access_key_id := s3Writer.Config.AwsKeyId
-	aws_secret_access_key := s3Writer.Config.AwsSecKey
-
+	aws_access_key_id_data, error := ioutil.ReadFile(s3Writer.Config.AwsKeyIdLoc)
+	aws_access_key_id := strings.TrimSpace(string(aws_access_key_id_data))
+	if error != nil {
+		return fmt.Errorf("AWS Access Key ID not found: %v", error)
+	}
+	aws_secret_access_key_data, error := ioutil.ReadFile(s3Writer.Config.AwsSecKeyLoc)
+	aws_secret_access_key := strings.TrimSpace(string(aws_secret_access_key_data))
+	if error != nil {
+		return fmt.Errorf("AWS Secret Key not found: %v", error)
+	}
 	token := ""
 	creds := credentials.NewStaticCredentials(aws_access_key_id, aws_secret_access_key, token)
 	_, err := creds.Get()
@@ -253,6 +265,10 @@ func (s3Writer *S3Writer) Init(config yaml.MapSlice, sender buffer.Sender) error
 }
 
 func (s3Writer *S3Writer) Start() error {
+	if (s3Writer.Sender == nil) {
+		log.Printf("[%s] No route is specified for this output", s3Writer.name)
+		return nil
+	}
 	// Create file saver
 	fileSaver := new(FileSaver)
 	fileSaver.Config = s3Writer.Config
@@ -272,7 +288,17 @@ func (s3Writer *S3Writer) Start() error {
 	for {
 		select {
 		case ev := <-receiveChan:
-			fileSaver.WriteToFile(ev)
+			var allowed bool
+			allowed = true
+			for key, value :=  range s3Writer.fields {
+				if ((*ev.Fields)[key] == nil || ((*ev.Fields)[key] != nil && value != (*ev.Fields)[key].(string))) {
+					allowed = false
+					break
+				}
+			}
+			if allowed {
+				fileSaver.WriteToFile(s3Writer.name, ev)
+			}
 		case <-tick.C:
 			s3Writer.InitiateUploadToS3(fileSaver)
 		case <-s3Writer.term:

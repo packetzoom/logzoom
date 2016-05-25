@@ -17,9 +17,14 @@ type Config struct {
 }
 
 type LJServer struct {
+	name   string
 	Config *Config
 	r      input.Receiver
 	term   chan bool
+}
+
+func New() input.Input {
+        return &LJServer{term: make(chan bool, 1)}
 }
 
 // lumberConn handles an incoming connection from a lumberjack client
@@ -30,7 +35,7 @@ func lumberConn(c net.Conn, r input.Receiver) {
 	log.Printf("[%s] closing lumberjack connection", c.RemoteAddr().String())
 }
 
-func (lj *LJServer) Init(config yaml.MapSlice, r input.Receiver) error {
+func (lj *LJServer) Init(name string, config yaml.MapSlice, r input.Receiver) error {
 	var ljConfig *Config
 
 	// go-yaml doesn't have a great way to partially unmarshal YAML data
@@ -41,6 +46,7 @@ func (lj *LJServer) Init(config yaml.MapSlice, r input.Receiver) error {
 		return fmt.Errorf("Error parsing lumberjack config: %v", err)
 	}
 
+	lj.name = name
 	lj.Config = ljConfig
 	lj.r = r
 
@@ -62,6 +68,7 @@ func (lj *LJServer) Start() error {
 
 	ln := tls.NewListener(conn, &config)
 
+	log.Printf("[%s] Started Lumberjack Instance", lj.name)
 	for {
 		select {
 		case <-lj.term:

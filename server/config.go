@@ -7,8 +7,9 @@ import (
 )
 
 type Config struct {
-	Inputs  map[string]yaml.MapSlice `yaml:"inputs"`
-	Outputs map[string]yaml.MapSlice `yaml:"outputs"`
+	Inputs  []map[string]yaml.MapSlice `yaml:"inputs"`
+	Outputs []map[string]yaml.MapSlice `yaml:"outputs"`
+	Routes  []map[string]yaml.MapSlice `yaml:"routes"`
 }
 
 func LoadConfig(file string) (*Config, error) {

@@ -1,18 +1,24 @@
+---
 inputs:
-  filebeat:
-    host: :7200
-    ssl_key: filebeat.key
-    ssl_crt: filebeat.crt
+  - all_filebeat:
+      filebeat:
+        host: 0.0.0.0:5000
+        ssl_key: "/etc/filebeat/filebeat.key"
+        ssl_crt: "/etc/filebeat/filebeat.crt"
+
 outputs:
-  tcp:
-    host: :7201
-  websocket:
-     host: :7202
-  elasticsearch:
-    hosts:
-      - http://localhost:9200
-    index: "logstash"
-    index_type: "logzoom"
-    gzip_enabled: false
-    info_log_enabled: false
-    error_log_enabled: false
+  - tcp1:
+      tcp:
+        host: "127.0.0.1:6000"
+  - ws1:
+      websocket:
+        host: 0.0.0.0:7200
+  - es:
+      elasticsearch:
+        hosts:
+          - http://localhost:9200
+        index: "logstash"
+        index_type: "type1"
+        gzip_enabled: false
+        info_log_enabled: false
+        error_log_enabled: false

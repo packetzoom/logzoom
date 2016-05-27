@@ -10,6 +10,7 @@ import (
 
 	"github.com/packetzoom/logzoom/buffer"
 	"github.com/packetzoom/logzoom/output"
+	"github.com/packetzoom/logzoom/route"
 	"golang.org/x/net/websocket"
 
 	"gopkg.in/yaml.v2"
@@ -24,6 +25,8 @@ type Config struct {
 }
 
 type WebSocketServer struct {
+	name string
+	fields map[string]string
 	host string
 	b    buffer.Sender
 	term chan bool
@@ -38,10 +41,14 @@ var (
 )
 
 func init() {
-	output.Register("websocket", &WebSocketServer{
+	output.Register("websocket", New)
+}
+
+func New() (output.Output) {
+	return &WebSocketServer{
 		logs: make(map[string]time.Time),
 		term: make(chan bool, 1),
-	})
+	}
 }
 
 func (ws *WebSocketServer) wslogsHandler(w *websocket.Conn) {
@@ -49,12 +56,12 @@ func (ws *WebSocketServer) wslogsHandler(w *websocket.Conn) {
 	host := fmt.Sprintf("%s/%d", w.RemoteAddr().String(), time.Now().UnixNano())
 
 	defer func() {
-		log.Printf("[%s] closing websocket conn", w.RemoteAddr().String())
+		log.Printf("[%s - %s] closing websocket conn", ws.name, w.RemoteAddr().String())
 		ws.b.DelSubscriber(host)
 		w.Close()
 	}()
 
-	log.Printf("[%s] accepting websocket conn", w.RemoteAddr().String())
+	log.Printf("[%s - %s] accepting websocket conn", ws.name, w.RemoteAddr().String())
 
 	r := make(chan *buffer.Event, recvBuffer)
 	ws.b.AddSubscriber(host, r)
@@ -97,11 +104,11 @@ func (ws *WebSocketServer) indexHandler(w http.ResponseWriter, r *http.Request) 
 
 func (ws *WebSocketServer) logListMaintainer() {
 	defer func() {
-		ws.b.DelSubscriber("logList")
+		ws.b.DelSubscriber(ws.name + "_logList")
 	}()
 
 	r := make(chan *buffer.Event, recvBuffer)
-	ws.b.AddSubscriber("logList", r)
+	ws.b.AddSubscriber(ws.name + "_logList", r)
 
 	ticker := time.NewTicker(time.Duration(600) * time.Second)
 
@@ -124,7 +131,7 @@ func (ws *WebSocketServer) logListMaintainer() {
 	}
 }
 
-func (ws *WebSocketServer) Init(config yaml.MapSlice, b buffer.Sender) error {
+func (ws *WebSocketServer) Init(name string, config yaml.MapSlice, b buffer.Sender, route route.Route) error {
 	var wsConfig *Config
 
 	// go-yaml doesn't have a great way to partially unmarshal YAML data
@@ -135,12 +142,19 @@ func (ws *WebSocketServer) Init(config yaml.MapSlice, b buffer.Sender) error {
 		return fmt.Errorf("Error parsing websocket config: %v", err)
 	}
 
+	ws.name = name
+	ws.fields = route.Fields
 	ws.host = wsConfig.Host
 	ws.b = b
 	return nil
 }
 
 func (ws *WebSocketServer) Start() error {
+	if (ws.b == nil) {
+		log.Printf("[%s] No route is specified for this output", ws.name)
+		return nil
+	}
+
 	http.Handle("/wslogs", websocket.Handler(ws.wslogsHandler))
 	http.HandleFunc("/logs", ws.logsHandler)
 	http.HandleFunc("/", ws.indexHandler)

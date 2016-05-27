@@ -25,7 +25,7 @@ type Event struct {
 
 // subscriber is some host that wants to receive events
 type subscriber struct {
-	Host string
+	Name string
 	Send chan *Event
 }
 
@@ -49,13 +49,13 @@ func New() *Buffer {
 	}
 }
 
-func (b *Buffer) AddSubscriber(host string, ch chan *Event) error {
-	b.add <- &subscriber{host, ch}
+func (b *Buffer) AddSubscriber(name string, ch chan *Event) error {
+	b.add <- &subscriber{name, ch}
 	return nil
 }
 
-func (b *Buffer) DelSubscriber(host string) error {
-	b.del <- host
+func (b *Buffer) DelSubscriber(name string) error {
+	b.del <- name
 	return nil
 }
 
@@ -77,11 +77,11 @@ func (b *Buffer) Start() {
 		case e := <-b.send:
 			b.Publish(e)
 		case s := <-b.add:
-			if _, ok := b.subscribers[s.Host]; ok {
-				log.Printf("A subscriber is already registered for %s\n", s.Host)
+			if _, ok := b.subscribers[s.Name]; ok {
+				log.Printf("A subscriber is already registered for %s\n", s.Name)
 				continue
 			}
-			b.subscribers[s.Host] = s
+			b.subscribers[s.Name] = s
 		case h := <-b.del:
 			delete(b.subscribers, h)
 		case <-b.term:
@@ -91,6 +91,7 @@ func (b *Buffer) Start() {
 		}
 	}
 }
-func (b *Buffer) Stop() {
+func (b *Buffer) Stop() error {
 	b.term <- true
+	return nil
 }

@@ -1,17 +1,42 @@
 ---
 inputs:
-  redis:
-    db: 10
-    host: localhost
-    input_queue: elasticsearch
-    working_queue: es_working
-    port: 6379
+  - redis_type1:
+      redis:
+        db: 10
+        host: localhost
+        input_queue: type1_elasticsearch
+        port: 6379
+  - redis_type2:
+      redis:
+        db: 10
+        host: localhost
+        input_queue: type2_elasticsearch
+        port: 6379
+
 outputs:
-  elasticsearch:
-    hosts:
-      - http://localhost:9200
-    index: "logstash"
-    index_type: "logzoom"
-    gzip_enabled: false
-    info_log_enabled: true
-    error_log_enabled: true
+  - type1_es:
+      elasticsearch:
+        hosts:
+          - http://localhost:9200
+        index: "logstash"
+        index_type: "type1"
+        gzip_enabled: false
+        info_log_enabled: true
+        error_log_enabled: true
+  - type2_es:
+      elasticsearch:
+        hosts:
+          - http://localhost:9200
+        index: "logstash"
+        index_type: "type2"
+        gzip_enabled: false
+        info_log_enabled: true
+        error_log_enabled: true
+
+routes:
+  - route1:
+      input: redis_type1
+      output: type1_es
+  - route2:
+      input: redis_type2
+      output: type2_es

@@ -10,6 +10,7 @@ import (
 	"github.com/adjust/redismq"
 	"github.com/packetzoom/logzoom/buffer"
 	"github.com/packetzoom/logzoom/output"
+	"github.com/packetzoom/logzoom/route"
 	"github.com/paulbellamy/ratecounter"
 
 	"gopkg.in/yaml.v2"
@@ -30,6 +31,8 @@ type Config struct {
 }
 
 type RedisServer struct {
+	name   string
+	fields map[string]string
 	config Config
 	sender buffer.Sender
 	term   chan bool
@@ -98,9 +101,11 @@ func (redisQueue *RedisQueue) Start() {
 }
 
 func init() {
-	output.Register("redis", &RedisServer{
-		term: make(chan bool, 1),
-	})
+	output.Register("redis", New)
+}
+
+func New() output.Output {
+	return &RedisServer{term: make(chan bool, 1)}
 }
 
 func (redisServer *RedisServer) ValidateConfig(config *Config) error {
@@ -119,7 +124,7 @@ func (redisServer *RedisServer) ValidateConfig(config *Config) error {
 	return nil
 }
 
-func (redisServer *RedisServer) Init(config yaml.MapSlice, sender buffer.Sender) error {
+func (redisServer *RedisServer) Init(name string, config yaml.MapSlice, sender buffer.Sender, route route.Route) error {
 	var redisConfig *Config
 
 	// go-yaml doesn't have a great way to partially unmarshal YAML data
@@ -134,16 +139,22 @@ func (redisServer *RedisServer) Init(config yaml.MapSlice, sender buffer.Sender)
 		return fmt.Errorf("Error in config: %v", err)
 	}
 
+	redisServer.name = name
+	redisServer.fields = route.Fields
 	redisServer.config = *redisConfig
 	redisServer.sender = sender
 	return nil
 }
 
 func (redisServer *RedisServer) Start() error {
+	if (redisServer.sender == nil) {
+		log.Printf("[%s] No Route is specified for this output", redisServer.name)
+		return nil
+	}
 	// Add the client as a subscriber
 	receiveChan := make(chan *buffer.Event, recvBuffer)
-	redisServer.sender.AddSubscriber(redisServer.config.Host, receiveChan)
-	defer redisServer.sender.DelSubscriber(redisServer.config.Host)
+	redisServer.sender.AddSubscriber(redisServer.name, receiveChan)
+	defer redisServer.sender.DelSubscriber(redisServer.name)
 
 	allQueues := make([]*RedisQueue, len(redisServer.config.CopyQueues))
 
@@ -154,6 +165,7 @@ func (redisServer *RedisServer) Start() error {
 		go redisQueue.Start()
 	}
 
+	log.Printf("[%s] Started Redis Output Instance", redisServer.name)
 	// Loop events and publish to Redis
 	tick := time.NewTicker(time.Duration(redisFlushInterval) * time.Second)
 	rateCounter := ratecounter.NewRateCounter(1 * time.Second)
@@ -162,13 +174,23 @@ func (redisServer *RedisServer) Start() error {
 		select {
 		case ev := <-receiveChan:
 			rateCounter.Incr(1)
-			text := *ev.Text
-			for _, queue := range allQueues {
-				queue.data <- text
+			var allowed bool
+			allowed = true
+			for key, value :=  range redisServer.fields {
+				if ((*ev.Fields)[key] == nil || ((*ev.Fields)[key] != nil && value != (*ev.Fields)[key].(string))) {
+					allowed = false
+					break
+				}
+			}
+			if allowed {
+				text := *ev.Text
+				for _, queue := range allQueues {
+					queue.data <- text
+				}
 			}
 		case <-tick.C:
 			if rateCounter.Rate() > 0 {
-				log.Printf("Current Redis input rate: %d/s\n", rateCounter.Rate())
+				log.Printf("[%s] Current Redis input rate: %d/s\n", redisServer.name, rateCounter.Rate())
 			}
 		case <-redisServer.term:
 			log.Println("RedisServer received term signal")

@@ -7,6 +7,7 @@ import (
 
 	"github.com/packetzoom/logzoom/buffer"
 	"github.com/packetzoom/logzoom/output"
+	"github.com/packetzoom/logzoom/route"
 	"gopkg.in/yaml.v2"
 )
 
@@ -19,45 +20,59 @@ type Config struct {
 }
 
 type TCPServer struct {
+	name string
+	fields map[string]string
 	host string
 	b    buffer.Sender
 	term chan bool
 }
 
 func init() {
-	output.Register("tcp", &TCPServer{
-		term: make(chan bool, 1),
-	})
+	output.Register("tcp", New)
+}
+
+func New() (output.Output) {
+	return &TCPServer{term: make(chan bool, 1)}
 }
 
 // lumberConn handles an incoming connection from a lumberjack client
 func (s *TCPServer) accept(c net.Conn) {
 	defer func() {
-		s.b.DelSubscriber(c.RemoteAddr().String())
-		log.Printf("[%s] closing tcp connection", c.RemoteAddr().String())
+		s.b.DelSubscriber(s.name)
+		log.Printf("[%s - %s] closing tcp connection", s.name, c.RemoteAddr().String())
 		c.Close()
 	}()
 
-	log.Printf("[%s] accepting tcp connection", c.RemoteAddr().String())
+	log.Printf("[%s - %s] accepting tcp connection", s.name, c.RemoteAddr().String())
 
 	// Add the client as a subscriber
 	r := make(chan *buffer.Event, recvBuffer)
-	s.b.AddSubscriber(c.RemoteAddr().String(), r)
+	s.b.AddSubscriber(s.name, r)
 
 	for {
 		select {
 		case ev := <-r:
-			_, err := c.Write([]byte(fmt.Sprintf("%s %s\n", ev.Source, *ev.Text)))
-			if err != nil {
-				log.Printf("[%s] error sending event to tcp connection: %v", c.RemoteAddr().String(), err)
-				return
+			var allowed bool
+			allowed = true
+			for key, value :=  range s.fields {
+				if ((*ev.Fields)[key] == nil || ((*ev.Fields)[key] != nil && value != (*ev.Fields)[key].(string))) {
+					allowed = false
+					break
+				}
+                        }
+                        if allowed {
+				_, err := c.Write([]byte(fmt.Sprintf("%s %s\n", ev.Source, *ev.Text)))
+				if err != nil {
+					log.Printf("[%s - %s] error sending event to tcp connection: %v", s.name, c.RemoteAddr().String(), err)
+					return
+				}
 			}
 		}
 	}
 
 }
 
-func (s *TCPServer) Init(config yaml.MapSlice, b buffer.Sender) error {
+func (s *TCPServer) Init(name string, config yaml.MapSlice, b buffer.Sender, route route.Route) error {
 	var tcpConfig *Config
 
 	// go-yaml doesn't have a great way to partially unmarshal YAML data
@@ -68,12 +83,18 @@ func (s *TCPServer) Init(config yaml.MapSlice, b buffer.Sender) error {
 		return fmt.Errorf("Error parsing tcp config: %v", err)
 	}
 
+	s.name = name
+	s.fields = route.Fields
 	s.host = tcpConfig.Host
 	s.b = b
 	return nil
 }
 
 func (s *TCPServer) Start() error {
+	if (s.b == nil) {
+		log.Printf("[%s] No Route is specified for this output", s.name)
+		return nil
+	}
 	ln, err := net.Listen("tcp", s.host)
 	if err != nil {
 		return fmt.Errorf("TCPServer: listener failed: %v", err)

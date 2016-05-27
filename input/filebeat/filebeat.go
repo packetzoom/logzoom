@@ -5,7 +5,5 @@ import (
 )
 
 func init() {
-	input.Register("filebeat", &LJServer{
-		term: make(chan bool, 1),
-	})
+	input.Register("filebeat", New)
 }

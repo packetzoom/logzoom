@@ -11,9 +11,9 @@ import (
 )
 
 type Config struct {
-	Host   string `yaml:"host"`
-	SSLCrt string `yaml:"ssl_crt"`
-	SSLKey string `yaml:"ssl_key"`
+	Host   string  `yaml:"host"`
+	SSLCrt *string `yaml:"ssl_crt"`
+	SSLKey *string `yaml:"ssl_key"`
 }
 
 type LJServer struct {
@@ -24,7 +24,7 @@ type LJServer struct {
 }
 
 func New() input.Input {
-        return &LJServer{term: make(chan bool, 1)}
+	return &LJServer{term: make(chan bool, 1)}
 }
 
 // lumberConn handles an incoming connection from a lumberjack client
@@ -54,19 +54,29 @@ func (lj *LJServer) Init(name string, config yaml.MapSlice, r input.Receiver) er
 }
 
 func (lj *LJServer) Start() error {
-	cert, err := tls.LoadX509KeyPair(lj.Config.SSLCrt, lj.Config.SSLKey)
-	if err != nil {
-		return fmt.Errorf("Error loading keys: %v", err)
+	var ln net.Listener
+
+	if lj.Config.SSLCrt != nil {
+		cert, err := tls.LoadX509KeyPair(*lj.Config.SSLCrt, *lj.Config.SSLKey)
+		if err != nil {
+			return fmt.Errorf("Error loading keys: %v", err)
+		}
+
+		conn, err := net.Listen("tcp", lj.Config.Host)
+		if err != nil {
+			return fmt.Errorf("Listener failed: %v", err)
+		}
+
+		config := tls.Config{Certificates: []tls.Certificate{cert}}
+
+		ln = tls.NewListener(conn, &config)
+	} else {
+		var err error
+		ln, err = net.Listen("tcp", lj.Config.Host)
+		if err != nil {
+			return fmt.Errorf("TCP Listener failed: %v", err)
+		}
 	}
-
-	conn, err := net.Listen("tcp", lj.Config.Host)
-	if err != nil {
-		return fmt.Errorf("Listener failed: %v", err)
-	}
-
-	config := tls.Config{Certificates: []tls.Certificate{cert}}
-
-	ln := tls.NewListener(conn, &config)
 
 	log.Printf("[%s] Started Lumberjack Instance", lj.name)
 	for {

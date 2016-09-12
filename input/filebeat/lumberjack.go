@@ -56,7 +56,6 @@ func (lj *LJServer) Init(name string, config yaml.MapSlice, r input.Receiver) er
 func (lj *LJServer) Start() error {
 	var ln net.Listener
 
-	fmt.Println("cert = %v", lj.Config.SSLCrt)
 	if lj.Config.SSLCrt != nil {
 		cert, err := tls.LoadX509KeyPair(*lj.Config.SSLCrt, *lj.Config.SSLKey)
 		if err != nil {

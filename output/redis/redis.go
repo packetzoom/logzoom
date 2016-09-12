@@ -182,7 +182,7 @@ func (redisServer *RedisServer) Start() error {
 					break
 				}
 				strval, isstr := val.(string)
-				if !isstr || (isstr && value != strval) {
+				if !isstr || value != strval {
 					allowed = false
 					break
 				}

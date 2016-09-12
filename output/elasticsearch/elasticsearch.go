@@ -110,7 +110,7 @@ func (i *Indexer) index(ev *buffer.Event) error {
 			return nil
 		}
 		strval, isstr := val.(string)
-		if !isstr || (isstr && value != strval) {
+		if !isstr || value != strval {
 			//early out if no match
 			return nil
 		}

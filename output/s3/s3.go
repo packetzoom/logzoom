@@ -296,7 +296,7 @@ func (s3Writer *S3Writer) Start() error {
 					break
 				}
 				strval, isstr := val.(string)
-				if !isstr || (isstr && value != strval) {
+				if !isstr || value != strval {
 					allowed = false
 					break
 				}

@@ -61,7 +61,7 @@ func (s *TCPServer) accept(c net.Conn) {
 					break
 				}
 				strval, isstr := val.(string)
-				if !isstr || (isstr && value != strval) {
+				if !isstr || value != strval {
 					allowed = false
 					break
 				}

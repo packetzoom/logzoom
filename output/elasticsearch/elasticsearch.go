@@ -32,6 +32,7 @@ type Indexer struct {
 	indexType         string
 	RateCounter       *ratecounter.RateCounter
 	lastDisplayUpdate time.Time
+	fields            map[string]string
 }
 
 type Config struct {
@@ -58,7 +59,7 @@ func init() {
 	output.Register("elasticsearch", New)
 }
 
-func New() (output.Output) {
+func New() output.Output {
 	return &ESServer{
 		host: fmt.Sprintf("%s:%d", defaultHost, time.Now().Unix()),
 		term: make(chan bool, 1),
@@ -102,10 +103,22 @@ func (i *Indexer) flush() error {
 }
 
 func (i *Indexer) index(ev *buffer.Event) error {
+	for key, value := range i.fields {
+		val, ok := (*ev.Fields)[key]
+		if !ok {
+			//early out if no match
+			return nil
+		}
+		strval, isstr := val.(string)
+		if !isstr || value != strval {
+			//early out if no match
+			return nil
+		}
+	}
+
 	doc := *ev.Text
 	idx := indexName(i.indexPrefix)
 	typ := i.indexType
-
 	request := elastic.NewBulkIndexRequest().Index(idx).Type(typ).Doc(doc)
 	i.bulkService.Add(request)
 	i.RateCounter.Incr(1)
@@ -193,7 +206,7 @@ func (es *ESServer) insertIndexTemplate(client *elastic.Client) error {
 }
 
 func (es *ESServer) Start() error {
-	if (es.b == nil) {
+	if es.b == nil {
 		log.Printf("[%s] No Route is specified for this output", es.name)
 		return nil
 	}
@@ -256,7 +269,7 @@ func (es *ESServer) Start() error {
 	rateCounter := ratecounter.NewRateCounter(1 * time.Second)
 
 	// Create indexer
-	idx := &Indexer{service, es.config.IndexPrefix, es.config.IndexType, rateCounter, time.Now()}
+	idx := &Indexer{service, es.config.IndexPrefix, es.config.IndexType, rateCounter, time.Now(), es.fields}
 
 	// Loop events and publish to elasticsearch
 	tick := time.NewTicker(time.Duration(esFlushInterval) * time.Second)

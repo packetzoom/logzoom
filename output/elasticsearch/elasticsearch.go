@@ -32,14 +32,13 @@ type Indexer struct {
 	indexType         string
 	RateCounter       *ratecounter.RateCounter
 	lastDisplayUpdate time.Time
-	ifHasField        *string
+	fields            map[string]string
 }
 
 type Config struct {
 	Hosts           []string `yaml:"hosts"`
 	IndexPrefix     string   `yaml:"index"`
 	IndexType       string   `yaml:"index_type"`
-	IfHasField      *string  `yaml:"if_has_field"`
 	Timeout         int      `yaml:"timeout"`
 	GzipEnabled     bool     `yaml:"gzip_enabled"`
 	InfoLogEnabled  bool     `yaml:"info_log_enabled"`
@@ -104,12 +103,13 @@ func (i *Indexer) flush() error {
 }
 
 func (i *Indexer) index(ev *buffer.Event) error {
-	//quick filter hack - rrichardson 2016/09
-	if i.ifHasField != nil {
-		if _, ok := (*ev.Fields)[*i.ifHasField]; !ok {
+	for key, value := range i.fields {
+		if (*ev.Fields)[key] == nil || ((*ev.Fields)[key] != nil && value != (*ev.Fields)[key].(string)) {
+			//early out if no match
 			return nil
 		}
 	}
+
 	doc := *ev.Text
 	idx := indexName(i.indexPrefix)
 	typ := i.indexType
@@ -263,7 +263,7 @@ func (es *ESServer) Start() error {
 	rateCounter := ratecounter.NewRateCounter(1 * time.Second)
 
 	// Create indexer
-	idx := &Indexer{service, es.config.IndexPrefix, es.config.IndexType, rateCounter, time.Now(), es.config.IfHasField}
+	idx := &Indexer{service, es.config.IndexPrefix, es.config.IndexType, rateCounter, time.Now(), es.fields}
 
 	// Loop events and publish to elasticsearch
 	tick := time.NewTicker(time.Duration(esFlushInterval) * time.Second)

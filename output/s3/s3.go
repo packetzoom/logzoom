@@ -46,11 +46,10 @@ type Config struct {
 	AwsS3Bucket  string `yaml:"aws_s3_bucket"`
 	AwsS3Region  string `yaml:"aws_s3_region"`
 
-	LocalPath       string  `yaml:"local_path"`
-	Path            string  `yaml:"s3_path"`
-	TimeSliceFormat string  `yaml:"time_slice_format"`
-	AwsS3OutputKey  string  `yaml:"aws_s3_output_key"`
-	IfHasField      *string `yaml:"if_has_field"`
+	LocalPath       string `yaml:"local_path"`
+	Path            string `yaml:"s3_path"`
+	TimeSliceFormat string `yaml:"time_slice_format"`
+	AwsS3OutputKey  string `yaml:"aws_s3_output_key"`
 }
 
 type OutputFileInfo struct {
@@ -274,7 +273,6 @@ func (s3Writer *S3Writer) Start() error {
 	fileSaver := new(FileSaver)
 	fileSaver.Config = s3Writer.Config
 	fileSaver.RateCounter = ratecounter.NewRateCounter(1 * time.Second)
-	ifHasField := s3Writer.Config.IfHasField
 	id := "s3_output"
 	// Add the client as a subscriber
 	receiveChan := make(chan *buffer.Event, recvBuffer)
@@ -291,18 +289,10 @@ func (s3Writer *S3Writer) Start() error {
 		case ev := <-receiveChan:
 			var allowed bool
 			allowed = true
-			//quick filter hack - rrichardson 2016/09
-			if ifHasField != nil {
-				if _, ok := (*ev.Fields)[*ifHasField]; !ok {
+			for key, value := range s3Writer.fields {
+				if (*ev.Fields)[key] == nil || ((*ev.Fields)[key] != nil && value != (*ev.Fields)[key].(string)) {
 					allowed = false
-				}
-			}
-			if allowed {
-				for key, value := range s3Writer.fields {
-					if (*ev.Fields)[key] == nil || ((*ev.Fields)[key] != nil && value != (*ev.Fields)[key].(string)) {
-						allowed = false
-						break
-					}
+					break
 				}
 			}
 			if allowed {

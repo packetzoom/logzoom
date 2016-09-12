@@ -25,11 +25,11 @@ type Config struct {
 }
 
 type WebSocketServer struct {
-	name string
+	name   string
 	fields map[string]string
-	host string
-	b    buffer.Sender
-	term chan bool
+	host   string
+	b      buffer.Sender
+	term   chan bool
 
 	mtx  sync.RWMutex
 	logs map[string]time.Time
@@ -44,7 +44,7 @@ func init() {
 	output.Register("websocket", New)
 }
 
-func New() (output.Output) {
+func New() output.Output {
 	return &WebSocketServer{
 		logs: make(map[string]time.Time),
 		term: make(chan bool, 1),
@@ -74,11 +74,27 @@ func (ws *WebSocketServer) wslogsHandler(w *websocket.Conn) {
 					continue
 				}
 			}
+			var allowed bool
+			allowed = true
+			for key, value := range ws.fields {
+				val, ok := (*ev.Fields)[key]
+				if !ok {
+					allowed = false
+					break
+				}
+				strval, isstr := val.(string)
+				if !isstr || (isstr && value != strval) {
+					allowed = false
+					break
+				}
+			}
+			if allowed {
 
-			err := websocket.Message.Send(w, *ev.Text)
-			if err != nil {
-				log.Printf("[%s] error sending ws message: %v", w.RemoteAddr().String(), err.Error())
-				return
+				err := websocket.Message.Send(w, *ev.Text)
+				if err != nil {
+					log.Printf("[%s] error sending ws message: %v", w.RemoteAddr().String(), err.Error())
+					return
+				}
 			}
 		}
 	}
@@ -108,7 +124,7 @@ func (ws *WebSocketServer) logListMaintainer() {
 	}()
 
 	r := make(chan *buffer.Event, recvBuffer)
-	ws.b.AddSubscriber(ws.name + "_logList", r)
+	ws.b.AddSubscriber(ws.name+"_logList", r)
 
 	ticker := time.NewTicker(time.Duration(600) * time.Second)
 
@@ -150,7 +166,7 @@ func (ws *WebSocketServer) Init(name string, config yaml.MapSlice, b buffer.Send
 }
 
 func (ws *WebSocketServer) Start() error {
-	if (ws.b == nil) {
+	if ws.b == nil {
 		log.Printf("[%s] No route is specified for this output", ws.name)
 		return nil
 	}

@@ -147,7 +147,7 @@ func (redisServer *RedisServer) Init(name string, config yaml.MapSlice, sender b
 }
 
 func (redisServer *RedisServer) Start() error {
-	if (redisServer.sender == nil) {
+	if redisServer.sender == nil {
 		log.Printf("[%s] No Route is specified for this output", redisServer.name)
 		return nil
 	}
@@ -173,16 +173,22 @@ func (redisServer *RedisServer) Start() error {
 	for {
 		select {
 		case ev := <-receiveChan:
-			rateCounter.Incr(1)
 			var allowed bool
 			allowed = true
-			for key, value :=  range redisServer.fields {
-				if ((*ev.Fields)[key] == nil || ((*ev.Fields)[key] != nil && value != (*ev.Fields)[key].(string))) {
+			for key, value := range redisServer.fields {
+				val, ok := (*ev.Fields)[key]
+				if !ok {
+					allowed = false
+					break
+				}
+				strval, isstr := val.(string)
+				if !isstr || (isstr && value != strval) {
 					allowed = false
 					break
 				}
 			}
 			if allowed {
+				rateCounter.Incr(1)
 				text := *ev.Text
 				for _, queue := range allQueues {
 					queue.data <- text

@@ -104,7 +104,13 @@ func (i *Indexer) flush() error {
 
 func (i *Indexer) index(ev *buffer.Event) error {
 	for key, value := range i.fields {
-		if (*ev.Fields)[key] == nil || ((*ev.Fields)[key] != nil && value != (*ev.Fields)[key].(string)) {
+		val, ok := (*ev.Fields)[key]
+		if !ok {
+			//early out if no match
+			return nil
+		}
+		strval, isstr := val.(string)
+		if !isstr || (isstr && value != strval) {
 			//early out if no match
 			return nil
 		}

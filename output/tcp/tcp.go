@@ -20,18 +20,18 @@ type Config struct {
 }
 
 type TCPServer struct {
-	name string
+	name   string
 	fields map[string]string
-	host string
-	b    buffer.Sender
-	term chan bool
+	host   string
+	b      buffer.Sender
+	term   chan bool
 }
 
 func init() {
 	output.Register("tcp", New)
 }
 
-func New() (output.Output) {
+func New() output.Output {
 	return &TCPServer{term: make(chan bool, 1)}
 }
 
@@ -54,13 +54,19 @@ func (s *TCPServer) accept(c net.Conn) {
 		case ev := <-r:
 			var allowed bool
 			allowed = true
-			for key, value :=  range s.fields {
-				if ((*ev.Fields)[key] == nil || ((*ev.Fields)[key] != nil && value != (*ev.Fields)[key].(string))) {
+			for key, value := range s.fields {
+				val, ok := (*ev.Fields)[key]
+				if !ok {
 					allowed = false
 					break
 				}
-                        }
-                        if allowed {
+				strval, isstr := val.(string)
+				if !isstr || (isstr && value != strval) {
+					allowed = false
+					break
+				}
+			}
+			if allowed {
 				_, err := c.Write([]byte(fmt.Sprintf("%s %s\n", ev.Source, *ev.Text)))
 				if err != nil {
 					log.Printf("[%s - %s] error sending event to tcp connection: %v", s.name, c.RemoteAddr().String(), err)
@@ -91,7 +97,7 @@ func (s *TCPServer) Init(name string, config yaml.MapSlice, b buffer.Sender, rou
 }
 
 func (s *TCPServer) Start() error {
-	if (s.b == nil) {
+	if s.b == nil {
 		log.Printf("[%s] No Route is specified for this output", s.name)
 		return nil
 	}

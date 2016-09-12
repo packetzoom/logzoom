@@ -290,7 +290,13 @@ func (s3Writer *S3Writer) Start() error {
 			var allowed bool
 			allowed = true
 			for key, value := range s3Writer.fields {
-				if (*ev.Fields)[key] == nil || ((*ev.Fields)[key] != nil && value != (*ev.Fields)[key].(string)) {
+				val, ok := (*ev.Fields)[key]
+				if !ok {
+					allowed = false
+					break
+				}
+				strval, isstr := val.(string)
+				if !isstr || (isstr && value != strval) {
 					allowed = false
 					break
 				}

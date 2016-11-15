@@ -8,12 +8,13 @@ import (
 	"net/http"
 	"os"
 	"time"
+        "golang.org/x/net/context"
 
-	"github.com/packetzoom/logzoom/buffer"
-	"github.com/packetzoom/logzoom/output"
+        "github.com/packetzoom/logzoom/buffer"
+        "github.com/packetzoom/logzoom/output"
 	"github.com/packetzoom/logzoom/route"
 	"github.com/paulbellamy/ratecounter"
-	"gopkg.in/olivere/elastic.v2"
+	"gopkg.in/olivere/elastic.v5"
 	"gopkg.in/yaml.v2"
 )
 
@@ -22,8 +23,8 @@ const (
 	defaultIndexPrefix = "logstash"
 	esFlushInterval    = 5
 	esMaxConns         = 20
-	esRecvBuffer       = 100
-	esSendBuffer       = 100
+	esRecvBuffer       = 10000
+	esSendBuffer       = 10000
 )
 
 type Indexer struct {
@@ -89,7 +90,7 @@ func (i *Indexer) flush() error {
 			i.lastDisplayUpdate = time.Now()
 		}
 
-		_, err := i.bulkService.Do()
+		_, err := i.bulkService.Do(context.Background())
 
 		if err != nil {
 			log.Printf("Unable to flush events: %s", err)
@@ -183,7 +184,7 @@ func (es *ESServer) insertIndexTemplate(client *elastic.Client) error {
 	inserter.Create(true)
 	inserter.BodyJson(template)
 
-	response, err := inserter.Do()
+	response, err := inserter.Do(context.Background())
 
 	if response != nil {
 		log.Println("Inserted template response:", response.Acknowledged)

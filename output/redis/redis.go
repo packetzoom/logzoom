@@ -19,7 +19,7 @@ import (
 const (
 	redisFlushInterval  = 5
 	rateDisplayInterval = 10
-	recvBuffer          = 100
+	recvBuffer          = 10000
 )
 
 type Config struct {

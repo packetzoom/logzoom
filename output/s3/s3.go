@@ -28,7 +28,7 @@ import (
 
 const (
 	s3FlushInterval        = 10
-	recvBuffer             = 100
+	recvBuffer             = 10000
 	maxSimultaneousUploads = 8
 )
 

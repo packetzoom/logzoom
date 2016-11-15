@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	recvBuffer = 100
+	recvBuffer = 10000
 )
 
 type Config struct {

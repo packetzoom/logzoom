@@ -15,6 +15,7 @@ import (
 
 	"github.com/packetzoom/logzoom/buffer"
 	"github.com/packetzoom/logzoom/input"
+	"github.com/packetzoom/logzoom/server"
 )
 
 const (
@@ -28,12 +29,14 @@ type Parser struct {
 	Recv       input.Receiver
 	wlen, plen uint32
 	buffer     io.Reader
+	SampleSize int
 }
 
-func NewParser(c net.Conn, r input.Receiver) *Parser {
+func NewParser(c net.Conn, r input.Receiver, sampleSize int) *Parser {
 	return &Parser{
 		Conn: c,
 		Recv: r,
+		SampleSize: sampleSize,
 	}
 }
 
@@ -136,7 +139,10 @@ func (p *Parser) read() (uint32, error) {
 			ev.Fields = &fields
 
 			// Send to the receiver which is a buffer. We block because...
-			p.Recv.Send(&ev)
+			if server.RandInt(0, 100) < p.SampleSize {
+				p.Recv.Send(&ev)
+			}
+
 		case "2J": // JSON
 			//log.Printf("Got JSON data")
 			binary.Read(buff, binary.BigEndian, &seq)
@@ -167,7 +173,9 @@ func (p *Parser) read() (uint32, error) {
 			ev.Fields = &fields
 
 			// Send to the receiver which is a buffer. We block because...
-			p.Recv.Send(&ev)
+			if server.RandInt(0, 100) < p.SampleSize {
+				p.Recv.Send(&ev)
+			}
 
 		default:
 			return seq, fmt.Errorf("unknown type: %s", b)

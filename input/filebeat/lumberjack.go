@@ -14,6 +14,7 @@ type Config struct {
 	Host   string `yaml:"host"`
 	SSLCrt string `yaml:"ssl_crt"`
 	SSLKey string `yaml:"ssl_key"`
+	SampleSize int `yaml:"sample_size"`
 }
 
 type LJServer struct {
@@ -28,10 +29,10 @@ func New() input.Input {
 }
 
 // lumberConn handles an incoming connection from a lumberjack client
-func lumberConn(c net.Conn, r input.Receiver) {
+func lumberConn(c net.Conn, r input.Receiver, sampleSize int) {
 	defer c.Close()
 	log.Printf("[%s] accepting lumberjack connection", c.RemoteAddr().String())
-	NewParser(c, r).Parse()
+	NewParser(c, r, sampleSize).Parse()
 	log.Printf("[%s] closing lumberjack connection", c.RemoteAddr().String())
 }
 
@@ -59,6 +60,11 @@ func (lj *LJServer) Start() error {
 		return fmt.Errorf("Error loading keys: %v", err)
 	}
 
+	if lj.Config.SampleSize == 0 {
+		lj.Config.SampleSize = 100
+	}
+	log.Printf("[%s] Setting Sample Size to %d%%", lj.name, lj.Config.SampleSize)
+
 	conn, err := net.Listen("tcp", lj.Config.Host)
 	if err != nil {
 		return fmt.Errorf("Listener failed: %v", err)
@@ -80,7 +86,7 @@ func (lj *LJServer) Start() error {
 				log.Printf("Error accepting connection: %v", err)
 				continue
 			}
-			go lumberConn(conn, lj.r)
+			go lumberConn(conn, lj.r, lj.Config.SampleSize)
 		}
 	}
 

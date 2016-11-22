@@ -8,6 +8,7 @@ import (
 	"github.com/packetzoom/logzoom/buffer"
 	"github.com/packetzoom/logzoom/output"
 	"github.com/packetzoom/logzoom/route"
+	"github.com/packetzoom/logzoom/server"
 	"gopkg.in/yaml.v2"
 )
 
@@ -17,14 +18,15 @@ const (
 
 type Config struct {
 	Host string `yaml:"host"`
+	SampleSize int `yaml:"sample_size"`
 }
 
 type TCPServer struct {
 	name string
 	fields map[string]string
-	host string
 	b    buffer.Sender
 	term chan bool
+	config *Config
 }
 
 func init() {
@@ -60,7 +62,7 @@ func (s *TCPServer) accept(c net.Conn) {
 					break
 				}
                         }
-                        if allowed {
+                        if allowed && server.RandInt(0, 100) < s.config.SampleSize {
 				_, err := c.Write([]byte(fmt.Sprintf("%s %s\n", ev.Source, *ev.Text)))
 				if err != nil {
 					log.Printf("[%s - %s] error sending event to tcp connection: %v", s.name, c.RemoteAddr().String(), err)
@@ -85,7 +87,7 @@ func (s *TCPServer) Init(name string, config yaml.MapSlice, b buffer.Sender, rou
 
 	s.name = name
 	s.fields = route.Fields
-	s.host = tcpConfig.Host
+	s.config = tcpConfig
 	s.b = b
 	return nil
 }
@@ -95,10 +97,15 @@ func (s *TCPServer) Start() error {
 		log.Printf("[%s] No Route is specified for this output", s.name)
 		return nil
 	}
-	ln, err := net.Listen("tcp", s.host)
+	ln, err := net.Listen("tcp", s.config.Host)
 	if err != nil {
 		return fmt.Errorf("TCPServer: listener failed: %v", err)
 	}
+
+	if s.config.SampleSize == 0 {
+                s.config.SampleSize = 100
+        }
+        log.Printf("[%s] Setting Sample Size to %d", s.name, s.config.SampleSize)
 
 	for {
 		select {

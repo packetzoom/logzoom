@@ -13,6 +13,7 @@ import (
 	"github.com/packetzoom/logzoom/buffer"
 	"github.com/packetzoom/logzoom/output"
 	"github.com/packetzoom/logzoom/route"
+	"github.com/packetzoom/logzoom/server"
 	"github.com/paulbellamy/ratecounter"
 	"gopkg.in/olivere/elastic.v5"
 	"gopkg.in/yaml.v2"
@@ -44,6 +45,7 @@ type Config struct {
 	GzipEnabled     bool     `yaml:"gzip_enabled"`
 	InfoLogEnabled  bool     `yaml:"info_log_enabled"`
 	ErrorLogEnabled bool     `yaml:"error_log_enabled"`
+	SampleSize      int      `yaml:"sample_size"`
 }
 
 type ESServer struct {
@@ -108,6 +110,11 @@ func (e *ESServer) ValidateConfig(config *Config) error {
 		return errors.New("Missing index type (e.g. logstash)")
 	}
 
+	if e.config.SampleSize == 0 {
+		e.config.SampleSize = 100
+	}
+	log.Printf("[%s] Setting Sample Size to %d", e.name, e.config.SampleSize)
+
 	return nil
 }
 
@@ -128,13 +135,19 @@ func (e *ESServer) Init(name string, config yaml.MapSlice, b buffer.Sender, rout
 	e.hosts = esConfig.Hosts
 	e.b = b
 
+	if err := e.ValidateConfig(esConfig); err != nil {
+		return fmt.Errorf("Error in config: %v", err)
+	}
+
 	return nil
 }
 
-func readInputChannel(idx *Indexer, receiveChan chan *buffer.Event) {
+func readInputChannel(sampleSize int, idx *Indexer, receiveChan chan *buffer.Event) {
 	select {
 		case ev := <-receiveChan:
-			idx.index(ev)
+			if (server.RandInt(0, 100) < sampleSize) {
+				idx.index(ev)
+			}
 	}
 }
 
@@ -184,8 +197,8 @@ func (es *ESServer) Start() error {
 			timeout = time.Duration(es.config.Timeout) * time.Second
 		}
 
-		log.Println("Setting HTTP timeout to", timeout)
-		log.Println("Setting GZIP enabled:", es.config.GzipEnabled)
+		log.Printf("[%s] Setting HTTP timeout to %v", es.name, timeout)
+		log.Printf("[%s] Setting GZIP enabled: %v", es.name, es.config.GzipEnabled)
 
 		httpClient.Timeout = timeout
 
@@ -247,7 +260,7 @@ func (es *ESServer) Start() error {
 	es.idx = idx
 
 	for {
-		readInputChannel(idx, receiveChan)
+		readInputChannel(es.config.SampleSize, idx, receiveChan)
 
 		if len(es.term) > 0 {
 			select {

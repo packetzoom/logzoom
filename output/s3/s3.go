@@ -19,6 +19,7 @@ import (
 	"github.com/packetzoom/logzoom/buffer"
 	"github.com/packetzoom/logzoom/output"
 	"github.com/packetzoom/logzoom/route"
+	"github.com/packetzoom/logzoom/server"
 
 	"github.com/jehiah/go-strftime"
 	"github.com/paulbellamy/ratecounter"
@@ -50,6 +51,7 @@ type Config struct {
 	Path            string `yaml:"s3_path"`
 	TimeSliceFormat string `yaml:"time_slice_format"`
 	AwsS3OutputKey  string `yaml:"aws_s3_output_key"`
+	SampleSize      int    `yaml:"sample_size"`
 }
 
 type OutputFileInfo struct {
@@ -212,6 +214,11 @@ func (s3Writer *S3Writer) ValidateConfig(config *Config) error {
 		return errors.New("missing AWS S3 output key")
 	}
 
+	if s3Writer.Config.SampleSize == 0 {
+		s3Writer.Config.SampleSize = 100
+	}
+	log.Printf("[%s] Setting Sample Size to %d", s3Writer.name, s3Writer.Config.SampleSize)
+
 	return nil
 }
 
@@ -226,15 +233,16 @@ func (s3Writer *S3Writer) Init(name string, config yaml.MapSlice, sender buffer.
 		return fmt.Errorf("Error parsing S3 config: %v", err)
 	}
 
-	if err := s3Writer.ValidateConfig(s3Config); err != nil {
-		return fmt.Errorf("Error in config: %v", err)
-	}
-
 	s3Writer.name = name
 	s3Writer.fields = route.Fields
 	s3Writer.uploadChannel = make(chan OutputFileInfo, maxSimultaneousUploads)
 	s3Writer.Config = *s3Config
 	s3Writer.Sender = sender
+
+	if err := s3Writer.ValidateConfig(s3Config); err != nil {
+		return fmt.Errorf("Error in config: %v", err)
+	}
+
 	aws_access_key_id_data, error := ioutil.ReadFile(s3Writer.Config.AwsKeyIdLoc)
 	aws_access_key_id := strings.TrimSpace(string(aws_access_key_id_data))
 	if error != nil {
@@ -296,7 +304,7 @@ func (s3Writer *S3Writer) Start() error {
 					break
 				}
 			}
-			if allowed {
+			if allowed && server.RandInt(0, 100) <= s3Writer.Config.SampleSize {
 				fileSaver.WriteToFile(s3Writer.name, ev)
 			}
 		case <-tick.C:

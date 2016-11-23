@@ -51,7 +51,7 @@ type Config struct {
 	Path            string `yaml:"s3_path"`
 	TimeSliceFormat string `yaml:"time_slice_format"`
 	AwsS3OutputKey  string `yaml:"aws_s3_output_key"`
-	SampleSize      int    `yaml:"sample_size"`
+	SampleSize      *int   `yaml:"sample_size,omitempty"`
 }
 
 type OutputFileInfo struct {
@@ -214,10 +214,11 @@ func (s3Writer *S3Writer) ValidateConfig(config *Config) error {
 		return errors.New("missing AWS S3 output key")
 	}
 
-	if s3Writer.Config.SampleSize == 0 {
-		s3Writer.Config.SampleSize = 100
+	if s3Writer.Config.SampleSize == nil {
+		i := 100
+		s3Writer.Config.SampleSize = &i
 	}
-	log.Printf("[%s] Setting Sample Size to %d", s3Writer.name, s3Writer.Config.SampleSize)
+	log.Printf("[%s] Setting Sample Size to %d", s3Writer.name, *s3Writer.Config.SampleSize)
 
 	return nil
 }
@@ -304,7 +305,7 @@ func (s3Writer *S3Writer) Start() error {
 					break
 				}
 			}
-			if allowed && server.RandInt(0, 100) <= s3Writer.Config.SampleSize {
+			if allowed && server.RandInt(0, 100) <= *s3Writer.Config.SampleSize {
 				fileSaver.WriteToFile(s3Writer.name, ev)
 			}
 		case <-tick.C:

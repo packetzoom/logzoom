@@ -45,7 +45,7 @@ type Config struct {
 	GzipEnabled     bool     `yaml:"gzip_enabled"`
 	InfoLogEnabled  bool     `yaml:"info_log_enabled"`
 	ErrorLogEnabled bool     `yaml:"error_log_enabled"`
-	SampleSize      int      `yaml:"sample_size"`
+	SampleSize      *int      `yaml:"sample_size,omitempty"`
 }
 
 type ESServer struct {
@@ -110,10 +110,11 @@ func (e *ESServer) ValidateConfig(config *Config) error {
 		return errors.New("Missing index type (e.g. logstash)")
 	}
 
-	if e.config.SampleSize == 0 {
-		e.config.SampleSize = 100
+	if e.config.SampleSize == nil {
+		i := 100
+		e.config.SampleSize = &i
 	}
-	log.Printf("[%s] Setting Sample Size to %d", e.name, e.config.SampleSize)
+	log.Printf("[%s] Setting Sample Size to %d", e.name, *e.config.SampleSize)
 
 	return nil
 }
@@ -260,7 +261,8 @@ func (es *ESServer) Start() error {
 	es.idx = idx
 
 	for {
-		readInputChannel(es.config.SampleSize, idx, receiveChan)
+
+		readInputChannel(*es.config.SampleSize, idx, receiveChan)
 
 		if len(es.term) > 0 {
 			select {

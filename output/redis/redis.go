@@ -29,7 +29,7 @@ type Config struct {
 	Db         int64    `yaml:"db"`
 	Password   string   `yaml:"password"`
 	CopyQueues []string `yaml:"copy_queues"`
-	SampleSize int      `yaml:"sample_size"`
+	SampleSize *int     `yaml:"sample_size,omitempty"`
 }
 
 type RedisServer struct {
@@ -123,10 +123,11 @@ func (redisServer *RedisServer) ValidateConfig(config *Config) error {
 		return errors.New("Missing Redis output queues")
 	}
 
-	if redisServer.config.SampleSize == 0 {
-		redisServer.config.SampleSize = 100
+	if redisServer.config.SampleSize == nil {
+		i := 100
+		redisServer.config.SampleSize = &i
 	}
-	log.Printf("[%s] Setting Sample Size to %d", redisServer.name, redisServer.config.SampleSize)
+	log.Printf("[%s] Setting Sample Size to %d", redisServer.name, *redisServer.config.SampleSize)
 
 	return nil
 }
@@ -190,7 +191,7 @@ func (redisServer *RedisServer) Start() error {
 					break
 				}
 			}
-			if allowed && server.RandInt(0, 100) < redisServer.config.SampleSize {
+			if allowed && server.RandInt(0, 100) < *redisServer.config.SampleSize {
 				text := *ev.Text
 				for _, queue := range allQueues {
 					queue.data <- text

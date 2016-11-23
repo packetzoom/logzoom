@@ -14,7 +14,7 @@ type Config struct {
 	Host   string `yaml:"host"`
 	SSLCrt string `yaml:"ssl_crt"`
 	SSLKey string `yaml:"ssl_key"`
-	SampleSize int `yaml:"sample_size"`
+	SampleSize *int `yaml:"sample_size,omitempty"`
 }
 
 type LJServer struct {
@@ -60,10 +60,11 @@ func (lj *LJServer) Start() error {
 		return fmt.Errorf("Error loading keys: %v", err)
 	}
 
-	if lj.Config.SampleSize == 0 {
-		lj.Config.SampleSize = 100
+	if lj.Config.SampleSize == nil {
+		i := 100
+		lj.Config.SampleSize = &i
 	}
-	log.Printf("[%s] Setting Sample Size to %d%%", lj.name, lj.Config.SampleSize)
+	log.Printf("[%s] Setting Sample Size to %d%%", lj.name, *lj.Config.SampleSize)
 
 	conn, err := net.Listen("tcp", lj.Config.Host)
 	if err != nil {
@@ -86,7 +87,7 @@ func (lj *LJServer) Start() error {
 				log.Printf("Error accepting connection: %v", err)
 				continue
 			}
-			go lumberConn(conn, lj.r, lj.Config.SampleSize)
+			go lumberConn(conn, lj.r, *lj.Config.SampleSize)
 		}
 	}
 

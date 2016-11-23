@@ -23,7 +23,7 @@ const (
 
 type Config struct {
 	Host string `yaml:"host"`
-	SampleSize int `yaml:"sample_size"`
+	SampleSize *int `yaml:"sample_size,omitempty"`
 }
 
 type WebSocketServer struct {
@@ -77,7 +77,7 @@ func (ws *WebSocketServer) wslogsHandler(w *websocket.Conn) {
 				}
 			}
 
-			if server.RandInt(0, 100) >= ws.config.SampleSize {
+			if server.RandInt(0, 100) >= *ws.config.SampleSize {
 				continue
 			}
 
@@ -161,10 +161,11 @@ func (ws *WebSocketServer) Start() error {
 		return nil
 	}
 
-	if ws.config.SampleSize == 0 {
-		ws.config.SampleSize = 100
+	if ws.config.SampleSize == nil {
+		i := 100
+		ws.config.SampleSize = &i
 	}
-	log.Printf("[%s] Setting Sample Size to %d", ws.name, ws.config.SampleSize)
+	log.Printf("[%s] Setting Sample Size to %d", ws.name, *ws.config.SampleSize)
 
 	http.Handle("/wslogs", websocket.Handler(ws.wslogsHandler))
 	http.HandleFunc("/logs", ws.logsHandler)

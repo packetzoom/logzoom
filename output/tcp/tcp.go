@@ -18,7 +18,7 @@ const (
 
 type Config struct {
 	Host string `yaml:"host"`
-	SampleSize int `yaml:"sample_size"`
+	SampleSize *int `yaml:"sample_size,omitempty"`
 }
 
 type TCPServer struct {
@@ -62,7 +62,7 @@ func (s *TCPServer) accept(c net.Conn) {
 					break
 				}
                         }
-                        if allowed && server.RandInt(0, 100) < s.config.SampleSize {
+                        if allowed && server.RandInt(0, 100) < *s.config.SampleSize {
 				_, err := c.Write([]byte(fmt.Sprintf("%s %s\n", ev.Source, *ev.Text)))
 				if err != nil {
 					log.Printf("[%s - %s] error sending event to tcp connection: %v", s.name, c.RemoteAddr().String(), err)
@@ -102,10 +102,11 @@ func (s *TCPServer) Start() error {
 		return fmt.Errorf("TCPServer: listener failed: %v", err)
 	}
 
-	if s.config.SampleSize == 0 {
-                s.config.SampleSize = 100
+	if s.config.SampleSize == nil {
+		i := 100
+                s.config.SampleSize = &i
         }
-        log.Printf("[%s] Setting Sample Size to %d", s.name, s.config.SampleSize)
+        log.Printf("[%s] Setting Sample Size to %d", s.name, *s.config.SampleSize)
 
 	for {
 		select {

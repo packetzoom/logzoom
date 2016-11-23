@@ -28,7 +28,7 @@ type Config struct {
 	Password     string `yaml:"password"`
 	InputQueue   string `yaml:"input_queue"`
 	JsonDecode   bool   `yaml:"json_decode"`
-	SampleSize   int    `yaml:"sample_size"`
+	SampleSize   *int   `yaml:"sample_size,omitempty"`
 }
 
 type RedisInputServer struct {
@@ -88,7 +88,7 @@ func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 					}
 				}
 
-				if server.RandInt(0, 100) < redisServer.config.SampleSize {
+				if server.RandInt(0, 100) < *redisServer.config.SampleSize {
 					redisServer.receiver.Send(&ev)
 				}
 			}
@@ -114,10 +114,11 @@ func (redisServer *RedisInputServer) ValidateConfig(config *Config) error {
 		return errors.New("Missing Redis input queue name")
 	}
 
-	if redisServer.config.SampleSize == 0 {
-		redisServer.config.SampleSize = 100
+	if redisServer.config.SampleSize == nil {
+		i := 100
+		redisServer.config.SampleSize = &i
 	}
-	log.Printf("[%s] Setting Sample Size to %d", redisServer.name, redisServer.config.SampleSize)
+	log.Printf("[%s] Setting Sample Size to %d", redisServer.name, *redisServer.config.SampleSize)
 
 	return nil
 }

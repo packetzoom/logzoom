@@ -6,18 +6,20 @@ import (
 	"log"
 	"os"
 
+	"net/http"
+	_ "net/http/pprof"
+	"runtime"
+	"runtime/pprof"
+
 	_ "github.com/packetzoom/logzoom/input/filebeat"
 	_ "github.com/packetzoom/logzoom/input/redis"
+	_ "github.com/packetzoom/logzoom/input/stdin"
 	_ "github.com/packetzoom/logzoom/output/elasticsearch"
 	_ "github.com/packetzoom/logzoom/output/redis"
 	_ "github.com/packetzoom/logzoom/output/s3"
 	_ "github.com/packetzoom/logzoom/output/tcp"
 	_ "github.com/packetzoom/logzoom/output/websocket"
 	"github.com/packetzoom/logzoom/server"
-	"net/http"
-	_ "net/http/pprof"
-	"runtime"
-	"runtime/pprof"
 )
 
 var (

@@ -10,6 +10,7 @@ import (
 	"github.com/adjust/redismq"
 	"github.com/packetzoom/logzoom/buffer"
 	"github.com/packetzoom/logzoom/output"
+	"github.com/packetzoom/logzoom/server"
 	"github.com/packetzoom/logzoom/route"
 	"github.com/paulbellamy/ratecounter"
 
@@ -19,7 +20,7 @@ import (
 const (
 	redisFlushInterval  = 5
 	rateDisplayInterval = 10
-	recvBuffer          = 100
+	recvBuffer          = 10000
 )
 
 type Config struct {
@@ -28,6 +29,7 @@ type Config struct {
 	Db         int64    `yaml:"db"`
 	Password   string   `yaml:"password"`
 	CopyQueues []string `yaml:"copy_queues"`
+	SampleSize *int     `yaml:"sample_size,omitempty"`
 }
 
 type RedisServer struct {
@@ -121,6 +123,12 @@ func (redisServer *RedisServer) ValidateConfig(config *Config) error {
 		return errors.New("Missing Redis output queues")
 	}
 
+	if redisServer.config.SampleSize == nil {
+		i := 100
+		redisServer.config.SampleSize = &i
+	}
+	log.Printf("[%s] Setting Sample Size to %d", redisServer.name, *redisServer.config.SampleSize)
+
 	return nil
 }
 
@@ -135,14 +143,15 @@ func (redisServer *RedisServer) Init(name string, config yaml.MapSlice, sender b
 		return fmt.Errorf("Error parsing Redis config: %v", err)
 	}
 
-	if err := redisServer.ValidateConfig(redisConfig); err != nil {
-		return fmt.Errorf("Error in config: %v", err)
-	}
-
 	redisServer.name = name
 	redisServer.fields = route.Fields
 	redisServer.config = *redisConfig
 	redisServer.sender = sender
+
+	if err := redisServer.ValidateConfig(redisConfig); err != nil {
+		return fmt.Errorf("Error in config: %v", err)
+	}
+
 	return nil
 }
 
@@ -182,7 +191,7 @@ func (redisServer *RedisServer) Start() error {
 					break
 				}
 			}
-			if allowed {
+			if allowed && server.RandInt(0, 100) < *redisServer.config.SampleSize {
 				text := *ev.Text
 				for _, queue := range allQueues {
 					queue.data <- text

@@ -11,6 +11,7 @@ import (
 	"github.com/packetzoom/logzoom/buffer"
 	"github.com/packetzoom/logzoom/output"
 	"github.com/packetzoom/logzoom/route"
+	"github.com/packetzoom/logzoom/server"
 	"golang.org/x/net/websocket"
 
 	"gopkg.in/yaml.v2"
@@ -22,14 +23,15 @@ const (
 
 type Config struct {
 	Host string `yaml:"host"`
+	SampleSize *int `yaml:"sample_size,omitempty"`
 }
 
 type WebSocketServer struct {
 	name string
 	fields map[string]string
-	host string
 	b    buffer.Sender
 	term chan bool
+	config *Config
 
 	mtx  sync.RWMutex
 	logs map[string]time.Time
@@ -73,6 +75,10 @@ func (ws *WebSocketServer) wslogsHandler(w *websocket.Conn) {
 				if ev.Source != source {
 					continue
 				}
+			}
+
+			if server.RandInt(0, 100) >= *ws.config.SampleSize {
+				continue
 			}
 
 			err := websocket.Message.Send(w, *ev.Text)
@@ -144,7 +150,7 @@ func (ws *WebSocketServer) Init(name string, config yaml.MapSlice, b buffer.Send
 
 	ws.name = name
 	ws.fields = route.Fields
-	ws.host = wsConfig.Host
+	ws.config = wsConfig
 	ws.b = b
 	return nil
 }
@@ -155,13 +161,19 @@ func (ws *WebSocketServer) Start() error {
 		return nil
 	}
 
+	if ws.config.SampleSize == nil {
+		i := 100
+		ws.config.SampleSize = &i
+	}
+	log.Printf("[%s] Setting Sample Size to %d", ws.name, *ws.config.SampleSize)
+
 	http.Handle("/wslogs", websocket.Handler(ws.wslogsHandler))
 	http.HandleFunc("/logs", ws.logsHandler)
 	http.HandleFunc("/", ws.indexHandler)
 
 	go ws.logListMaintainer()
 
-	err := http.ListenAndServe(ws.host, nil)
+	err := http.ListenAndServe(ws.config.Host, nil)
 	if err != nil {
 		return fmt.Errorf("Error starting websocket server: %v", err)
 	}

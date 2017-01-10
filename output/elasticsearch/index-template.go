@@ -12,21 +12,21 @@ const IndexTemplate string = `
       "dynamic_templates" : [ {
         "message_field" : {
           "match" : "message",
-          "match_mapping_type" : "string",
+          "match_mapping_type" : "text",
           "mapping" : {
-            "type" : "string", "index" : "analyzed", "omit_norms" : true,
+            "type" : "text", "index" : "analyzed", "omit_norms" : true,
             "fielddata" : { "format" : "disabled" }
           }
         }
       }, {
         "string_fields" : {
           "match" : "*",
-          "match_mapping_type" : "string",
+          "match_mapping_type" : "text",
           "mapping" : {
-            "type" : "string", "index" : "analyzed", "omit_norms" : true,
+            "type" : "text", "index" : "analyzed", "omit_norms" : true,
             "fielddata" : { "format" : "disabled" },
             "fields" : {
-              "raw" : {"type": "string", "index" : "not_analyzed", "doc_values" : true, "ignore_above" : 256}
+              "raw" : {"type": "text", "index" : "not_analyzed", "doc_values" : true, "ignore_above" : 256}
             }
           }
         }
@@ -81,7 +81,7 @@ const IndexTemplate string = `
       } ],
       "properties" : {
         "@timestamp": { "type": "date", "doc_values" : true },
-        "@version": { "type": "string", "index": "not_analyzed", "doc_values" : true },
+        "@version": { "type": "text", "index": "not_analyzed", "doc_values" : true },
         "geoip"  : {
           "type" : "object",
           "dynamic": true,

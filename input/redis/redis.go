@@ -12,12 +12,13 @@ import (
 	"github.com/adjust/redismq"
 	"github.com/packetzoom/logzoom/buffer"
 	"github.com/packetzoom/logzoom/input"
+	"github.com/packetzoom/logzoom/server"
 	"github.com/paulbellamy/ratecounter"
 	"gopkg.in/yaml.v2"
 )
 
 const (
-	recvBuffer = 100
+	recvBuffer = 10000
 )
 
 type Config struct {
@@ -27,6 +28,7 @@ type Config struct {
 	Password     string `yaml:"password"`
 	InputQueue   string `yaml:"input_queue"`
 	JsonDecode   bool   `yaml:"json_decode"`
+	SampleSize   *int   `yaml:"sample_size,omitempty"`
 }
 
 type RedisInputServer struct {
@@ -86,7 +88,9 @@ func redisGet(redisServer *RedisInputServer, consumer *redismq.Consumer) error {
 					}
 				}
 
-				redisServer.receiver.Send(&ev)
+				if server.RandInt(0, 100) < *redisServer.config.SampleSize {
+					redisServer.receiver.Send(&ev)
+				}
 			}
 		} else {
 			log.Printf("Error reading from Redis: %s, sleeping", err)
@@ -110,6 +114,12 @@ func (redisServer *RedisInputServer) ValidateConfig(config *Config) error {
 		return errors.New("Missing Redis input queue name")
 	}
 
+	if redisServer.config.SampleSize == nil {
+		i := 100
+		redisServer.config.SampleSize = &i
+	}
+	log.Printf("[%s] Setting Sample Size to %d", redisServer.name, *redisServer.config.SampleSize)
+
 	return nil
 }
 
@@ -124,13 +134,13 @@ func (redisServer *RedisInputServer) Init(name string, config yaml.MapSlice, rec
 		return fmt.Errorf("Error parsing Redis config: %v", err)
 	}
 
-	if err := redisServer.ValidateConfig(redisConfig); err != nil {
-		return fmt.Errorf("Error in config: %v", err)
-	}
-
 	redisServer.name = name
 	redisServer.config = *redisConfig
 	redisServer.receiver = receiver
+
+	if err := redisServer.ValidateConfig(redisConfig); err != nil {
+		return fmt.Errorf("Error in config: %v", err)
+	}
 
 	return nil
 }

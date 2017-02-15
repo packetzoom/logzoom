@@ -251,7 +251,7 @@ func (es *ESServer) Start() error {
 		BulkSize(-1).                                 // No limit
 		FlushInterval(esFlushInterval * time.Second). // autocommit every # seconds
 		Stats(true).                                  // gather statistics
-		Do()
+		Do(context.Background())
 
         if err != nil {
             log.Println(err)

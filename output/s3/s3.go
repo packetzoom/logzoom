@@ -13,6 +13,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
@@ -42,10 +44,10 @@ func uuid() string {
 }
 
 type Config struct {
-	AwsKeyIdLoc string `yaml:"aws_key_id_loc"`
-	AwsSecKeyLoc string `yaml:"aws_sec_key_loc"`
-	AwsS3Bucket string `yaml:"aws_s3_bucket"`
-	AwsS3Region string `yaml:"aws_s3_region"`
+	AwsKeyIdLoc  string `yaml:"aws_key_id_loc,omitempty"`
+	AwsSecKeyLoc string `yaml:"aws_sec_key_loc,omitempty"`
+	AwsS3Bucket  string `yaml:"aws_s3_bucket"`
+	AwsS3Region  string `yaml:"aws_s3_region"`
 
 	LocalPath       string `yaml:"local_path"`
 	Path            string `yaml:"s3_path"`
@@ -244,18 +246,29 @@ func (s3Writer *S3Writer) Init(name string, config yaml.MapSlice, sender buffer.
 		return fmt.Errorf("Error in config: %v", err)
 	}
 
-	aws_access_key_id_data, error := ioutil.ReadFile(s3Writer.Config.AwsKeyIdLoc)
-	aws_access_key_id := strings.TrimSpace(string(aws_access_key_id_data))
-	if error != nil {
-		return fmt.Errorf("AWS Access Key ID not found: %v", error)
+	var creds *credentials.Credentials
+	if s3Writer.Config.AwsKeyIdLoc != "" {
+		aws_access_key_id_data, error := ioutil.ReadFile(s3Writer.Config.AwsKeyIdLoc)
+		aws_access_key_id := strings.TrimSpace(string(aws_access_key_id_data))
+		if error != nil {
+			return fmt.Errorf("AWS Access Key ID not found: %v", error)
+		}
+		aws_secret_access_key_data, error := ioutil.ReadFile(s3Writer.Config.AwsSecKeyLoc)
+		aws_secret_access_key := strings.TrimSpace(string(aws_secret_access_key_data))
+		if error != nil {
+			return fmt.Errorf("AWS Secret Key not found: %v", error)
+		}
+		token := ""
+		creds = credentials.NewStaticCredentials(aws_access_key_id, aws_secret_access_key, token)
+	} else {
+		creds = credentials.NewChainCredentials(
+			[]credentials.Provider{
+				&credentials.EnvProvider{},
+				&ec2rolecreds.EC2RoleProvider{
+					Client: ec2metadata.New(session.New(aws.NewConfig())),
+				},
+			})
 	}
-	aws_secret_access_key_data, error := ioutil.ReadFile(s3Writer.Config.AwsSecKeyLoc)
-	aws_secret_access_key := strings.TrimSpace(string(aws_secret_access_key_data))
-	if error != nil {
-		return fmt.Errorf("AWS Secret Key not found: %v", error)
-	}
-	token := ""
-	creds := credentials.NewStaticCredentials(aws_access_key_id, aws_secret_access_key, token)
 	_, err := creds.Get()
 
 	if err != nil {
